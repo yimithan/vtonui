@@ -25,12 +25,20 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
       for (let i = 0; i < finishedResults.length; i++) {
         const result = finishedResults[i];
         
-        // Fetch the image data
-        const response = await fetch(result.generatedImage!);
-        const blob = await response.blob();
-        
-        // Add to ZIP with filename
-        zip.file(`try-on-result-${i + 1}.png`, blob);
+        try {
+          // Fetch the image data
+          const response = await fetch(result.generatedImage!);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image ${i + 1}`);
+          }
+          const blob = await response.blob();
+          
+          // Add to ZIP with filename
+          zip.file(`try-on-result-${i + 1}.png`, blob);
+        } catch (fetchError) {
+          console.error(`Error fetching image ${i + 1}:`, fetchError);
+          throw new Error(`Failed to download image ${i + 1} of ${finishedResults.length}`);
+        }
       }
       
       // Generate ZIP file
@@ -48,7 +56,8 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
       URL.revokeObjectURL(link.href);
     } catch (error) {
       console.error('Error creating ZIP file:', error);
-      alert('Failed to create ZIP file. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to create ZIP file: ${errorMessage}\n\nCheck the browser console for more details.`);
     } finally {
       setIsCreatingZip(false);
     }
