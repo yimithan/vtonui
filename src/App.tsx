@@ -96,7 +96,7 @@ export default function App() {
       for (const group of validGroups) {
         // Check if user requested abort
         if (shouldAbort) {
-          hasGlobalError = true;
+          hasGlobalError = true; // This will break the outer loop
           setErrorMessage("Batch processing aborted by user.");
           // Mark all remaining pending items as error
           setResults(prev => prev.map(r => 
