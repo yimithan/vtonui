@@ -51,7 +51,7 @@ export default function App() {
       return;
     }
     if (modelImages.length === 0) {
-      setErrorMessage("Please upload a model image.");
+      setErrorMessage("Please upload at least one model image.");
       return;
     }
     const validGroups = garmentGroups.filter(g => g.files.length > 0);
@@ -63,73 +63,101 @@ export default function App() {
     // Reset / Init
     setErrorMessage(null);
     setStatus(AppStatus.BATCH_PROCESSING);
-    setBatchProgress({ current: 0, total: validGroups.length });
     
-    // Initialize results with 'pending' state
-    const initialResults: TryOnResult[] = validGroups.map(g => ({
-      garmentId: g.id,
-      garmentPreview: g.files[0].preview,
-      status: 'pending'
-    }));
+    // Calculate total combinations: models × garments
+    const totalCombinations = modelImages.length * validGroups.length;
+    setBatchProgress({ current: 0, total: totalCombinations });
+    
+    // Initialize results with 'pending' state for each model-garment combination
+    const initialResults: TryOnResult[] = [];
+    for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
+      for (const group of validGroups) {
+        initialResults.push({
+          modelId: `model-${modelIdx}`, // Use index-based ID
+          modelPreview: modelImages[modelIdx].preview,
+          garmentId: group.id,
+          garmentPreview: group.files[0].preview,
+          status: 'pending'
+        });
+      }
+    }
     setResults(initialResults);
 
     let hasGlobalError = false;
+    let currentProgress = 0;
 
-    // Batch Loop
-    for (let i = 0; i < validGroups.length; i++) {
-      const group = validGroups[i];
-      setBatchProgress({ current: i + 1, total: validGroups.length });
+    // Nested Batch Loop: For each model, process all garments
+    for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
+      const modelImage = modelImages[modelIdx];
+      const modelId = `model-${modelIdx}`;
+      
+      for (const group of validGroups) {
+        currentProgress++;
+        setBatchProgress({ current: currentProgress, total: totalCombinations });
 
-      // Update item status to 'analyzing'
-      setResults(prev => prev.map(r => r.garmentId === group.id ? { ...r, status: 'analyzing' } : r));
+        // Update item status to 'analyzing'
+        setResults(prev => prev.map(r => 
+          (r.modelId === modelId && r.garmentId === group.id) 
+            ? { ...r, status: 'analyzing' } 
+            : r
+        ));
 
-      try {
-        const promptInstructions = customPromptConfig || DEFAULT_PROMPT_MAKER;
+        try {
+          const promptInstructions = customPromptConfig || DEFAULT_PROMPT_MAKER;
 
-        // Step 1: Analyze
-        const analysisPrompt = await analyzeImages(
-          apiKey,
-          modelImages[0].file,
-          group.files.map(f => f.file),
-          promptInstructions
-        );
+          // Step 1: Analyze
+          const analysisPrompt = await analyzeImages(
+            apiKey,
+            modelImage.file,
+            group.files.map(f => f.file),
+            promptInstructions
+          );
 
-        // Update item status to 'generating'
-        setResults(prev => prev.map(r => r.garmentId === group.id ? { ...r, status: 'generating' } : r));
+          // Update item status to 'generating'
+          setResults(prev => prev.map(r => 
+            (r.modelId === modelId && r.garmentId === group.id) 
+              ? { ...r, status: 'generating' } 
+              : r
+          ));
 
-        // Step 2: Generate
-        // GÜNCELLEME BURADA YAPILDI: group.files.map(...) parametresi eklendi.
-        const resultImage = await generateTryOnImage(
-          apiKey,
-          analysisPrompt,
-          modelImages[0].file,
-          group.files.map(f => f.file), // <--- YENİ EKLENEN KISIM
-          settings
-        );
+          // Step 2: Generate
+          const resultImage = await generateTryOnImage(
+            apiKey,
+            analysisPrompt,
+            modelImage.file,
+            group.files.map(f => f.file),
+            settings
+          );
 
-        // Update item status to 'success'
-        setResults(prev => prev.map(r => r.garmentId === group.id ? { 
-          ...r, 
-          status: 'success', 
-          generatedImage: resultImage 
-        } : r));
+          // Update item status to 'success'
+          setResults(prev => prev.map(r => 
+            (r.modelId === modelId && r.garmentId === group.id) 
+              ? { ...r, status: 'success', generatedImage: resultImage } 
+              : r
+          ));
 
-      } catch (error: any) {
-        console.error(`Error processing garment ${group.id}:`, error);
-        
-        // Update item status to 'error'
-        setResults(prev => prev.map(r => r.garmentId === group.id ? { 
-          ...r, 
-          status: 'error', 
-          error: error.message || "Unknown error" 
-        } : r));
+        } catch (error: any) {
+          console.error(`Error processing model ${modelImage.file.name} with garment ${group.id}:`, error);
+          
+          // Update item status to 'error'
+          setResults(prev => prev.map(r => 
+            (r.modelId === modelId && r.garmentId === group.id) 
+              ? { ...r, status: 'error', error: error.message || "Unknown error" } 
+              : r
+          ));
 
-        // API Key veya Yetki hatası varsa döngüyü kır
-        if (error.message.includes("API Key") || error.message.includes("403")) {
-           hasGlobalError = true;
-           setErrorMessage("API Authorization failed. stopping batch.");
-           break;
+          // API Key veya Yetki hatası varsa döngüyü kır
+          if (error.message.includes("API Key") || error.message.includes("403")) {
+             hasGlobalError = true;
+             setErrorMessage("API Authorization failed. stopping batch.");
+             break;
+          }
         }
+      }
+      
+      // Break outer loop if global error
+      if (hasGlobalError) {
+        break;
       }
     }
 
@@ -182,9 +210,10 @@ export default function App() {
               {/* Model Upload */}
               <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 backdrop-blur-sm">
                 <UploadZone
-                  label="Model Image (Reference)"
+                  label="Model Images (Reference)"
+                  multiple={true}
                   files={modelImages}
-                  onFilesChange={(files) => setModelImages(files.slice(0, 1))} 
+                  onFilesChange={setModelImages} 
                   disabled={isProcessing || isCooldown}
                 />
               </div>

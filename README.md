@@ -4,23 +4,24 @@
 
 # Gemini Virtual Try-On
 
-A high-fidelity virtual try-on web application powered by [Google Gemini](https://ai.google.dev/) image generation models. Upload a reference model photo and one or more garment images, and the app generates realistic images of the model wearing each garment.
+A high-fidelity virtual try-on web application powered by [Google Gemini](https://ai.google.dev/) image generation models. Upload one or more model reference photos and one or more garment images, and the app generates realistic images of each model wearing each garment.
 
 View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p0pgz2Lv9gC
 
 ## Features
 
-- **Model & Garment Upload** — Drag-and-drop upload zones for a single model (reference) image and multiple garment image groups.
-- **Batch Processing** — Queue multiple garments and process them all in one run. Each garment goes through a two-step AI pipeline (analyze → generate).
-- **Results Gallery** — View real-time status for each garment (pending → analyzing → generating → success/error) and download finished results.
+- **Model & Garment Upload** — Drag-and-drop upload zones for multiple model reference images and multiple garment image groups.
+- **Batch Processing** — Queue multiple models and garments; each model will be dressed with every garment in a nested batch loop (Model1 × [Garment1, Garment2, ...], Model2 × [Garment1, Garment2, ...], etc.).
+- **Results Gallery** — View real-time status for each model-garment combination (pending → analyzing → generating → success/error) and download finished results.
 - **Custom Prompt Logic** — Optionally upload a `prompt_maker.json` file to override the default analysis behavior.
 - **Generation Settings** — Configure output resolution (1K / 2K / 4K) and aspect ratio (1:1, 3:4, 4:3, 9:16, 16:9).
 - **Cooldown Timer** — Built-in quota protection with a configurable cooldown between batch runs.
 
 ## How It Works
 
-1. **Analyze** — The model image and garment images are sent to `gemini-3-pro-image-preview` along with prompt instructions. The model returns a detailed text prompt describing how the model should look wearing the garment.
+1. **Analyze** — For each model-garment combination, the model image and garment images are sent to `gemini-3-pro-image-preview` along with prompt instructions. The model returns a detailed text prompt describing how the model should look wearing the garment.
 2. **Generate** — The text prompt, model image, and garment images are sent back to `gemini-3-pro-image-preview` with image generation config (resolution & aspect ratio). The model returns a generated image of the virtual try-on result.
+3. **Batch Loop** — The process repeats for all model-garment combinations: Model1 with all garments, then Model2 with all garments, etc.
 
 ## Tech Stack
 
