@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, CheckCircle2, Package } from 'lucide-react';
 import { TryOnResult } from '../types';
 
 interface ResultsGalleryProps {
@@ -7,6 +7,32 @@ interface ResultsGalleryProps {
 }
 
 const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
+  const handleDownloadAll = async () => {
+    const finishedResults = results.filter(r => r.status === 'success' && r.generatedImage);
+    
+    if (finishedResults.length === 0) {
+      alert('No finished images to download');
+      return;
+    }
+
+    for (let i = 0; i < finishedResults.length; i++) {
+      const result = finishedResults[i];
+      const link = document.createElement('a');
+      link.href = result.generatedImage!;
+      link.download = `try-on-result-${i + 1}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Add a small delay between downloads to prevent browser from blocking
+      if (i < finishedResults.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+  };
+
+  const finishedCount = results.filter(r => r.status === 'success' && r.generatedImage).length;
+
   if (results.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-slate-500 p-8 min-h-[400px]">
@@ -16,7 +42,19 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6">
+    <div className="space-y-4">
+      {finishedCount > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleDownloadAll}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+          >
+            <Package className="w-5 h-5" />
+            Download All ({finishedCount})
+          </button>
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-6">
       {results.map((result, idx) => (
         <div 
           key={`${result.modelId}-${result.garmentId}`} 
@@ -85,6 +123,7 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 };
