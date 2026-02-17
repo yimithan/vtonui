@@ -66,9 +66,29 @@ export const analyzeImages = async (
     }
   });
 
-  const text = response.text;
-  if (!text) throw new Error("No analysis generated");
-  return text;
+  // Debug: check why no text was returned
+  if (!response.text) {
+    const candidate = response.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    const blockReason = response.promptFeedback?.blockReason;
+    
+    console.error('Response details:', {
+      finishReason,
+      blockReason,
+      candidateCount: response.candidates?.length,
+      fullResponse: JSON.stringify(response, null, 2)
+    });
+    
+    if (blockReason) {
+      throw new Error(`Analysis blocked by safety filter: ${blockReason}`);
+    }
+    if (finishReason === 'SAFETY') {
+      throw new Error('Response blocked due to safety settings');
+    }
+    throw new Error(`No analysis generated (finishReason: ${finishReason})`);
+  }
+  
+  return response.text;
 };
 
 export const generateTryOnImage = async (
