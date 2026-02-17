@@ -1,10 +1,13 @@
 import React, { useMemo } from 'react';
-import { Download, Loader2, AlertTriangle, CheckCircle2, Package } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, CheckCircle2, Archive } from 'lucide-react';
 import { TryOnResult } from '../types';
 
 interface ResultsGalleryProps {
   results: TryOnResult[];
 }
+
+// Delay between downloads to prevent browser from blocking multiple sequential downloads
+const DOWNLOAD_DELAY_MS = 100;
 
 const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
   const finishedResults = useMemo(
@@ -24,7 +27,7 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
       
       // Add a small delay between downloads to prevent browser from blocking
       if (i < finishedResults.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, DOWNLOAD_DELAY_MS));
       }
     }
   };
@@ -45,7 +48,7 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
             onClick={handleDownloadAll}
             className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg"
           >
-            <Package className="w-5 h-5" />
+            <Archive className="w-5 h-5" />
             Download All ({finishedResults.length})
           </button>
         </div>
