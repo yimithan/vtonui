@@ -1,34 +1,56 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Download, Loader2, AlertTriangle, CheckCircle2, Archive } from 'lucide-react';
 import { TryOnResult } from '../types';
+import JSZip from 'jszip';
 
 interface ResultsGalleryProps {
   results: TryOnResult[];
 }
 
-// Delay between downloads to prevent browser from blocking multiple sequential downloads
-const DOWNLOAD_DELAY_MS = 100;
-
 const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
+  const [isCreatingZip, setIsCreatingZip] = useState(false);
+
   const finishedResults = useMemo(
     () => results.filter(r => r.status === 'success' && r.generatedImage),
     [results]
   );
 
   const handleDownloadAll = async () => {
-    for (let i = 0; i < finishedResults.length; i++) {
-      const result = finishedResults[i];
+    setIsCreatingZip(true);
+    
+    try {
+      const zip = new JSZip();
+      
+      // Add each image to the ZIP file
+      for (let i = 0; i < finishedResults.length; i++) {
+        const result = finishedResults[i];
+        
+        // Fetch the image data
+        const response = await fetch(result.generatedImage!);
+        const blob = await response.blob();
+        
+        // Add to ZIP with filename
+        zip.file(`try-on-result-${i + 1}.png`, blob);
+      }
+      
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      
+      // Create download link
       const link = document.createElement('a');
-      link.href = result.generatedImage!;
-      link.download = `try-on-result-${i + 1}.png`;
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `try-on-results-${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      // Add a small delay between downloads to prevent browser from blocking
-      if (i < finishedResults.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, DOWNLOAD_DELAY_MS));
-      }
+      // Clean up the URL object
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      console.error('Error creating ZIP file:', error);
+      alert('Failed to create ZIP file. Please try again.');
+    } finally {
+      setIsCreatingZip(false);
     }
   };
 
@@ -46,10 +68,24 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
         <div className="flex justify-end">
           <button
             onClick={handleDownloadAll}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+            disabled={isCreatingZip}
+            className={`px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${
+              isCreatingZip
+                ? 'bg-indigo-500 cursor-wait'
+                : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.02] active:scale-[0.98]'
+            } text-white`}
           >
-            <Archive className="w-5 h-5" />
-            Download All ({finishedResults.length})
+            {isCreatingZip ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Creating ZIP...
+              </>
+            ) : (
+              <>
+                <Archive className="w-5 h-5" />
+                Download ZIP ({finishedResults.length})
+              </>
+            )}
           </button>
         </div>
       )}
