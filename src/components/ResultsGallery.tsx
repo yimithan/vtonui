@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Download, Loader2, AlertTriangle, CheckCircle2, Package } from 'lucide-react';
 import { TryOnResult } from '../types';
 
@@ -7,14 +7,12 @@ interface ResultsGalleryProps {
 }
 
 const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
-  const handleDownloadAll = async () => {
-    const finishedResults = results.filter(r => r.status === 'success' && r.generatedImage);
-    
-    if (finishedResults.length === 0) {
-      alert('No finished images to download');
-      return;
-    }
+  const finishedResults = useMemo(
+    () => results.filter(r => r.status === 'success' && r.generatedImage),
+    [results]
+  );
 
+  const handleDownloadAll = async () => {
     for (let i = 0; i < finishedResults.length; i++) {
       const result = finishedResults[i];
       const link = document.createElement('a');
@@ -31,8 +29,6 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
     }
   };
 
-  const finishedCount = results.filter(r => r.status === 'success' && r.generatedImage).length;
-
   if (results.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-slate-500 p-8 min-h-[400px]">
@@ -43,14 +39,14 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
 
   return (
     <div className="space-y-4">
-      {finishedCount > 0 && (
+      {finishedResults.length > 0 && (
         <div className="flex justify-end">
           <button
             onClick={handleDownloadAll}
             className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg"
           >
             <Package className="w-5 h-5" />
-            Download All ({finishedCount})
+            Download All ({finishedResults.length})
           </button>
         </div>
       )}
