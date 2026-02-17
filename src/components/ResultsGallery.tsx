@@ -1,12 +1,68 @@
-import React from 'react';
-import { Download, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Download, Loader2, AlertTriangle, CheckCircle2, Archive } from 'lucide-react';
 import { TryOnResult } from '../types';
+import JSZip from 'jszip';
 
 interface ResultsGalleryProps {
   results: TryOnResult[];
 }
 
 const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
+  const [isCreatingZip, setIsCreatingZip] = useState(false);
+
+  const finishedResults = useMemo(
+    () => results.filter(r => r.status === 'success' && r.generatedImage),
+    [results]
+  );
+
+  const handleDownloadAll = async () => {
+    setIsCreatingZip(true);
+    
+    try {
+      const zip = new JSZip();
+      
+      // Add each image to the ZIP file
+      for (let i = 0; i < finishedResults.length; i++) {
+        const result = finishedResults[i];
+        
+        try {
+          // Fetch the image data
+          const response = await fetch(result.generatedImage!);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image ${i + 1}`);
+          }
+          const blob = await response.blob();
+          
+          // Add to ZIP with filename
+          zip.file(`try-on-result-${i + 1}.png`, blob);
+        } catch (fetchError) {
+          console.error(`Error fetching image ${i + 1}:`, fetchError);
+          throw new Error(`Failed to download image ${i + 1} of ${finishedResults.length}`);
+        }
+      }
+      
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `try-on-results-${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the URL object
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      console.error('Error creating ZIP file:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to create ZIP file: ${errorMessage}\n\nCheck the browser console for more details.`);
+    } finally {
+      setIsCreatingZip(false);
+    }
+  };
+
   if (results.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-slate-500 p-8 min-h-[400px]">
@@ -16,7 +72,33 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6">
+    <div className="space-y-4">
+      {finishedResults.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleDownloadAll}
+            disabled={isCreatingZip}
+            className={`px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${
+              isCreatingZip
+                ? 'bg-indigo-500 cursor-wait'
+                : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.02] active:scale-[0.98]'
+            } text-white`}
+          >
+            {isCreatingZip ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Creating ZIP...
+              </>
+            ) : (
+              <>
+                <Archive className="w-5 h-5" />
+                Download ZIP ({finishedResults.length})
+              </>
+            )}
+          </button>
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-6">
       {results.map((result, idx) => (
         <div 
           key={`${result.modelId}-${result.garmentId}`} 
@@ -85,6 +167,7 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 };
