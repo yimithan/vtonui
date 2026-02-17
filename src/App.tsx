@@ -6,7 +6,7 @@ import ResultsGallery from './components/ResultsGallery';
 import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult } from './types';
 import { analyzeImages, generateTryOnImage } from './services/geminiService';
 import { COOLDOWN_SUCCESS_SECONDS, COOLDOWN_ERROR_SECONDS, DEFAULT_PROMPT_MAKER } from './constants';
-import { Loader2, AlertTriangle, Wand2, Clock } from 'lucide-react';
+import { Loader2, AlertTriangle, Wand2, Clock, StopCircle } from 'lucide-react';
 
 export default function App() {
   const [apiKey, setApiKey] = useState('');
@@ -30,6 +30,7 @@ export default function App() {
   const [results, setResults] = useState<TryOnResult[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [shouldAbort, setShouldAbort] = useState(false);
 
   // Cooldown Timer
   useEffect(() => {
@@ -62,6 +63,7 @@ export default function App() {
 
     // Reset / Init
     setErrorMessage(null);
+    setShouldAbort(false);
     setStatus(AppStatus.BATCH_PROCESSING);
     
     // Calculate total combinations: models × garments
@@ -92,6 +94,19 @@ export default function App() {
       const modelId = `model-${modelIdx}`;
       
       for (const group of validGroups) {
+        // Check if user requested abort
+        if (shouldAbort) {
+          hasGlobalError = true; // This will break the outer loop
+          setErrorMessage("Batch processing aborted by user.");
+          // Mark all remaining pending items as error
+          setResults(prev => prev.map(r => 
+            r.status === 'pending' || r.status === 'analyzing' || r.status === 'generating'
+              ? { ...r, status: 'error', error: 'Aborted by user' } 
+              : r
+          ));
+          break;
+        }
+        
         currentProgress++;
         setBatchProgress({ current: currentProgress, total: totalCombinations });
 
@@ -170,6 +185,10 @@ export default function App() {
     }
   };
 
+  const handleAbort = () => {
+    setShouldAbort(true);
+  };
+
   const isProcessing = status === AppStatus.BATCH_PROCESSING;
   const isCooldown = cooldown > 0;
 
@@ -242,29 +261,41 @@ export default function App() {
                       {Math.floor(cooldown / 60)}:{(cooldown % 60).toString().padStart(2, '0')}
                     </div>
                   </div>
+                ) : isProcessing ? (
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleGenerate}
+                      disabled={true}
+                      className="w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-xl bg-indigo-500/50 cursor-not-allowed text-indigo-200"
+                    >
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      Processing {batchProgress.current}/{batchProgress.total}
+                    </button>
+                    <button
+                      onClick={handleAbort}
+                      disabled={shouldAbort}
+                      className={`w-full py-3 rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all shadow-xl ${
+                        shouldAbort 
+                          ? 'bg-slate-700 cursor-not-allowed text-slate-500'
+                          : 'bg-red-600 hover:bg-red-500 hover:scale-[1.02] active:scale-[0.98]'
+                      }`}
+                    >
+                      <StopCircle className="w-5 h-5" />
+                      {shouldAbort ? 'Aborting...' : 'Abort All Processes'}
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={handleGenerate}
-                    disabled={isProcessing || !apiKey}
+                    disabled={!apiKey}
                     className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-xl ${
-                      isProcessing 
-                        ? 'bg-indigo-500/50 cursor-not-allowed text-indigo-200'
-                        : !apiKey 
-                          ? 'bg-slate-700 cursor-not-allowed text-slate-500'
-                          : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.02] active:scale-[0.98]'
+                      !apiKey 
+                        ? 'bg-slate-700 cursor-not-allowed text-slate-500'
+                        : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.02] active:scale-[0.98]'
                     }`}
                   >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="w-6 h-6 animate-spin" />
-                        Processing {batchProgress.current}/{batchProgress.total}
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 className="w-6 h-6" />
-                        Start Batch
-                      </>
-                    )}
+                    <Wand2 className="w-6 h-6" />
+                    Start Batch
                   </button>
                 )}
               </div>
