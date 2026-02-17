@@ -19,7 +19,7 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
     <div className="grid grid-cols-1 gap-6">
       {results.map((result, idx) => (
         <div 
-          key={result.garmentId} 
+          key={`${result.modelId}-${result.garmentId}`} 
           className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50 overflow-hidden flex flex-col md:flex-row gap-4"
         >
           {/* Status / Input Column */}
@@ -32,10 +32,19 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
                 {result.status === 'pending' && <span className="text-xs bg-slate-500/10 text-slate-400 px-2 py-0.5 rounded-full">Pending</span>}
              </div>
              
+             {/* Model Preview */}
+             <div className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative border border-slate-700">
+                <img src={result.modelPreview} alt="Model Input" className="w-full h-full object-cover opacity-70" />
+                <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-xs text-white text-center">
+                    Model
+                </div>
+             </div>
+             
+             {/* Garment Preview */}
              <div className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative border border-slate-700">
                 <img src={result.garmentPreview} alt="Garment Input" className="w-full h-full object-cover opacity-70" />
                 <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-xs text-white text-center">
-                    Original Garment
+                    Garment
                 </div>
              </div>
              
