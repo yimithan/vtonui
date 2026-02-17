@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Key, AlertCircle, FileJson } from 'lucide-react';
+import { Settings, Key, AlertCircle, FileText } from 'lucide-react';
 import { GenerationSettings } from '../types';
 
 interface SidebarProps {
@@ -20,18 +20,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onPromptConfigChange
 }) => {
 
-  const handleJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        onPromptConfigChange(content);
-      };
-      reader.readAsText(file);
-    } else {
-      onPromptConfigChange(null);
-    }
+  const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value.trim();
+    onPromptConfigChange(value || null);
   };
 
   return (
@@ -67,27 +58,21 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Prompt Configuration Section */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <FileJson className="w-4 h-4" />
-            Prompt Logic (JSON)
+          <label htmlFor="custom-prompt" className="text-sm font-medium text-slate-300 flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Custom Prompt (Optional)
           </label>
-          <div className="relative">
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleJsonUpload}
-              className="w-full text-sm text-slate-400
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-full file:border-0
-                file:text-sm file:font-semibold
-                file:bg-slate-700 file:text-indigo-300
-                hover:file:bg-slate-600
-                cursor-pointer"
-              disabled={isProcessing}
-            />
-          </div>
-          <p className="text-xs text-slate-500">
-            Optional. Upload a custom <code>prompt_maker.json</code> to override the default analysis behavior.
+          <textarea
+            id="custom-prompt"
+            aria-describedby="custom-prompt-help"
+            onChange={handlePromptChange}
+            placeholder="Enter custom prompt instructions (optional)"
+            rows={6}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y"
+            disabled={isProcessing}
+          />
+          <p id="custom-prompt-help" className="text-xs text-slate-500">
+            Optional. Enter a custom prompt to override the default analysis behavior.
           </p>
         </div>
 

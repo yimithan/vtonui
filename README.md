@@ -13,7 +13,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 - **Model & Garment Upload** — Drag-and-drop upload zones for multiple model reference images and multiple garment image groups.
 - **Batch Processing** — Queue multiple models and garments; each model will be dressed with every garment in a nested batch loop (Model1 × [Garment1, Garment2, ...], Model2 × [Garment1, Garment2, ...], etc.).
 - **Results Gallery** — View real-time status for each model-garment combination (pending → analyzing → generating → success/error) and download finished results.
-- **Custom Prompt Logic** — Optionally upload a `prompt_maker.json` file to override the default analysis behavior.
+- **Custom Prompt Text** — Optionally provide a custom prompt text to override the default analysis behavior.
 - **Generation Settings** — Configure output resolution (1K / 2K / 4K) and aspect ratio (1:1, 3:4, 4:3, 9:16, 16:9).
 - **Cooldown Timer** — Built-in quota protection with a configurable cooldown between batch runs.
 
@@ -83,9 +83,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 | Resolution | 1K (Standard), 2K (High), 4K (Ultra) | 1K |
 | Aspect Ratio | 1:1, 3:4, 4:3, 9:16, 16:9 | 3:4 |
 
-### Custom Prompt Logic
+### Custom Prompt Text
 
-Upload a JSON file via the sidebar to replace the default analysis prompt. The default prompt instructs the AI to act as a fashion stylist, analyzing the model's physical characteristics and the garment's details to produce a photorealistic generation prompt.
+Enter custom prompt text via the sidebar to replace the default analysis prompt. The default prompt instructs the AI to act as a high-end fashion photography prompt engineer, analyzing the model's physical characteristics and the garment's details to produce a photorealistic generation prompt with zero-bleed constraints.
 
 ### Cooldown
 
