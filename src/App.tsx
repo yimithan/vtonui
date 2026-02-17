@@ -70,11 +70,11 @@ export default function App() {
     
     // Initialize results with 'pending' state for each model-garment combination
     const initialResults: TryOnResult[] = [];
-    for (const modelImage of modelImages) {
+    for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
       for (const group of validGroups) {
         initialResults.push({
-          modelId: modelImage.preview, // Use preview as unique ID
-          modelPreview: modelImage.preview,
+          modelId: `model-${modelIdx}`, // Use index-based ID
+          modelPreview: modelImages[modelIdx].preview,
           garmentId: group.id,
           garmentPreview: group.files[0].preview,
           status: 'pending'
@@ -87,17 +87,17 @@ export default function App() {
     let currentProgress = 0;
 
     // Nested Batch Loop: For each model, process all garments
-    for (const modelImage of modelImages) {
+    for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
+      const modelImage = modelImages[modelIdx];
+      const modelId = `model-${modelIdx}`;
+      
       for (const group of validGroups) {
         currentProgress++;
         setBatchProgress({ current: currentProgress, total: totalCombinations });
 
-        // Find the result index for this model-garment combination
-        const resultKey = `${modelImage.preview}-${group.id}`;
-
         // Update item status to 'analyzing'
         setResults(prev => prev.map(r => 
-          (r.modelId === modelImage.preview && r.garmentId === group.id) 
+          (r.modelId === modelId && r.garmentId === group.id) 
             ? { ...r, status: 'analyzing' } 
             : r
         ));
@@ -115,7 +115,7 @@ export default function App() {
 
           // Update item status to 'generating'
           setResults(prev => prev.map(r => 
-            (r.modelId === modelImage.preview && r.garmentId === group.id) 
+            (r.modelId === modelId && r.garmentId === group.id) 
               ? { ...r, status: 'generating' } 
               : r
           ));
@@ -131,7 +131,7 @@ export default function App() {
 
           // Update item status to 'success'
           setResults(prev => prev.map(r => 
-            (r.modelId === modelImage.preview && r.garmentId === group.id) 
+            (r.modelId === modelId && r.garmentId === group.id) 
               ? { ...r, status: 'success', generatedImage: resultImage } 
               : r
           ));
@@ -141,7 +141,7 @@ export default function App() {
           
           // Update item status to 'error'
           setResults(prev => prev.map(r => 
-            (r.modelId === modelImage.preview && r.garmentId === group.id) 
+            (r.modelId === modelId && r.garmentId === group.id) 
               ? { ...r, status: 'error', error: error.message || "Unknown error" } 
               : r
           ));
