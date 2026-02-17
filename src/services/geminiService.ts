@@ -1,0 +1,126 @@
+import { 
+  GoogleGenAI, 
+  HarmCategory, 
+  HarmBlockThreshold 
+} from "@google/genai";
+
+// Helper: Dosyayı Base64'e çevir
+export const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
+// Python'daki gibi tüm filtreleri kapatıyoruz
+const SAFETY_SETTINGS = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+];
+
+export const analyzeImages = async (
+  apiKey: string,
+  modelImage: File,
+  garmentImages: File[],
+  promptInstructions: string
+): Promise<string> => {
+  if (!apiKey) throw new Error("API Key is required");
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const parts: any[] = [];
+
+  parts.push({ text: promptInstructions });
+
+  const modelBase64 = await fileToBase64(modelImage);
+  parts.push({
+    inlineData: {
+      mimeType: modelImage.type,
+      data: modelBase64
+    }
+  });
+
+  for (const file of garmentImages) {
+    const base64 = await fileToBase64(file);
+    parts.push({
+      inlineData: {
+        mimeType: file.type,
+        data: base64
+      }
+    });
+  }
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-image-preview', 
+    contents: { parts: parts },
+    config: {
+      safetySettings: SAFETY_SETTINGS,
+    }
+  });
+
+  const text = response.text;
+  if (!text) throw new Error("No analysis generated");
+  return text;
+};
+
+export const generateTryOnImage = async (
+  apiKey: string,
+  prompt: string,
+  modelImage: File,
+  garmentImages: File[],
+  settings: { resolution: string; aspectRatio: string }
+): Promise<string> => {
+  if (!apiKey) throw new Error("API Key is required");
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const parts: any[] = [];
+
+  parts.push({ text: prompt });
+
+  const modelBase64 = await fileToBase64(modelImage);
+  parts.push({
+    inlineData: {
+      mimeType: modelImage.type,
+      data: modelBase64
+    }
+  });
+
+  for (const file of garmentImages) {
+    const garmentBase64 = await fileToBase64(file);
+    parts.push({
+      inlineData: {
+        mimeType: file.type,
+        data: garmentBase64
+      }
+    });
+  }
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-image-preview',
+    contents: { parts: parts },
+    config: {
+      imageConfig: {
+        imageSize: settings.resolution,
+        aspectRatio: settings.aspectRatio
+      },
+      safetySettings: SAFETY_SETTINGS,
+    }
+  });
+
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
+    }
+  }
+
+  throw new Error("No image generated in the response");
+};

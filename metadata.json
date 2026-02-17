@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Virtual Try-On",
+  "description": "A high-fidelity virtual try-on interface using Google Gemini 3 Pro models. Analyze garments and models to generate realistic try-on results.",
+  "requestFramePermissions": []
+}
