@@ -58,18 +58,20 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Prompt Configuration Section */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+          <label htmlFor="custom-prompt" className="text-sm font-medium text-slate-300 flex items-center gap-2">
             <FileText className="w-4 h-4" />
             Custom Prompt (Optional)
           </label>
           <textarea
+            id="custom-prompt"
+            aria-describedby="custom-prompt-help"
             onChange={handlePromptChange}
             placeholder="Enter custom prompt instructions (optional)"
             rows={6}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-none"
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y"
             disabled={isProcessing}
           />
-          <p className="text-xs text-slate-500">
+          <p id="custom-prompt-help" className="text-xs text-slate-500">
             Optional. Enter a custom prompt to override the default analysis behavior.
           </p>
         </div>
