@@ -3,6 +3,7 @@ import {
   HarmCategory, 
   HarmBlockThreshold 
 } from "@google/genai";
+import { addLog } from './debugLogger';
 
 // Helper: Dosyayı Base64'e çevir
 export const fileToBase64 = (file: File): Promise<string> => {
@@ -33,6 +34,8 @@ export const analyzeImages = async (
   promptInstructions: string
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key is required");
+
+  addLog('info', `[analyzeImages] Starting analysis — model: "${modelImage.name}", garments: ${garmentImages.map(f => f.name).join(', ')}`);
 
   const ai = new GoogleGenAI({ apiKey });
   
@@ -65,6 +68,8 @@ export const analyzeImages = async (
       safetySettings: SAFETY_SETTINGS,
     }
   });
+
+  addLog('info', `[analyzeImages] API response received. Candidates: ${response.candidates?.length ?? 0}, hasText: ${!!response.text}`);
 
   // Debug: check why no text was returned
   if (!response.text) {
@@ -99,6 +104,8 @@ export const generateTryOnImage = async (
   settings: { resolution: string; aspectRatio: string }
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key is required");
+
+  addLog('info', `[generateTryOnImage] Starting generation — model: "${modelImage.name}", resolution: ${settings.resolution}, aspect: ${settings.aspectRatio}`);
 
   const ai = new GoogleGenAI({ apiKey });
   
@@ -135,6 +142,8 @@ export const generateTryOnImage = async (
       safetySettings: SAFETY_SETTINGS,
     }
   });
+
+  addLog('info', `[generateTryOnImage] API response received. Parts: ${response.candidates?.[0]?.content?.parts?.length ?? 0}`);
 
   for (const part of response.candidates?.[0]?.content?.parts || []) {
     if (part.inlineData) {
