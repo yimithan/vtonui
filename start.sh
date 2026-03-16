@@ -19,7 +19,10 @@ echo "[OK] Node.js found: $(node --version)"
 if [ ! -d "node_modules" ]; then
     echo
     echo "[INFO] Installing dependencies..."
-    npm install
+    if ! npm install; then
+        echo "[ERROR] Failed to install dependencies."
+        exit 1
+    fi
     echo "[OK] Dependencies installed."
 else
     echo "[OK] Dependencies already installed."
