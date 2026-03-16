@@ -38,6 +38,8 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 
 ```
 ├── index.html                 # Entry HTML with Tailwind CDN and import map
+├── start.bat                  # Windows launcher (double-click to start)
+├── start.sh                   # macOS/Linux launcher (./start.sh to start)
 ├── vite.config.ts             # Vite config (port 3000, API key injection)
 ├── tsconfig.json              # TypeScript configuration
 ├── metadata.json              # AI Studio app metadata
@@ -60,6 +62,22 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 ## Run Locally
 
 **Prerequisites:** Node.js
+
+### Option 1: Quick Start (Launcher Scripts)
+
+1. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your [Gemini API key](https://aistudio.google.com/apikey):
+   ```
+   GEMINI_API_KEY=your_key_here
+   ```
+2. Launch the app:
+   - **Windows:** Double-click `start.bat`
+   - **macOS / Linux:** Run `./start.sh`
+
+   The launcher automatically installs dependencies (if needed) and starts the development server.
+
+3. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Option 2: Manual Setup
 
 1. Install dependencies:
    ```bash
