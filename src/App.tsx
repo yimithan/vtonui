@@ -3,8 +3,10 @@ import Sidebar from './components/Sidebar';
 import UploadZone from './components/UploadZone';
 import GarmentList from './components/GarmentList';
 import ResultsGallery from './components/ResultsGallery';
+import DebugConsole from './components/DebugConsole';
 import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult } from './types';
 import { analyzeImages, generateTryOnImage } from './services/geminiService';
+import { addLog } from './services/debugLogger';
 import { COOLDOWN_SUCCESS_SECONDS, COOLDOWN_ERROR_SECONDS, DEFAULT_PROMPT_MAKER } from './constants';
 import { Loader2, AlertTriangle, Wand2, Clock, StopCircle } from 'lucide-react';
 
@@ -69,6 +71,7 @@ export default function App() {
     // Calculate total combinations: models × garments
     const totalCombinations = modelImages.length * validGroups.length;
     setBatchProgress({ current: 0, total: totalCombinations });
+    addLog('info', `[Batch] Starting batch — ${modelImages.length} model(s) × ${validGroups.length} garment group(s) = ${totalCombinations} combination(s)`);
     
     // Initialize results with 'pending' state for each model-garment combination
     const initialResults: TryOnResult[] = [];
@@ -98,6 +101,7 @@ export default function App() {
         if (shouldAbort) {
           hasGlobalError = true; // This will break the outer loop
           setErrorMessage("Batch processing aborted by user.");
+          addLog('warn', '[Batch] Aborted by user');
           // Mark all remaining pending items as error
           setResults(prev => prev.map(r => 
             r.status === 'pending' || r.status === 'analyzing' || r.status === 'generating'
@@ -109,6 +113,7 @@ export default function App() {
         
         currentProgress++;
         setBatchProgress({ current: currentProgress, total: totalCombinations });
+        addLog('info', `[Batch] Processing ${currentProgress}/${totalCombinations} — model: "${modelImage.file.name}", garment group: ${group.id}`);
 
         // Update item status to 'analyzing'
         setResults(prev => prev.map(r => 
@@ -127,6 +132,7 @@ export default function App() {
             group.files.map(f => f.file),
             promptInstructions
           );
+          addLog('info', `[Batch] Analysis complete for model "${modelImage.file.name}" (${analysisPrompt.length} chars)`);
 
           // Update item status to 'generating'
           setResults(prev => prev.map(r => 
@@ -143,6 +149,7 @@ export default function App() {
             group.files.map(f => f.file),
             settings
           );
+          addLog('info', `[Batch] Image generated for model "${modelImage.file.name}", garment group ${group.id}`);
 
           // Update item status to 'success'
           setResults(prev => prev.map(r => 
@@ -153,6 +160,7 @@ export default function App() {
 
         } catch (error: any) {
           console.error(`Error processing model ${modelImage.file.name} with garment ${group.id}:`, error);
+          addLog('error', `[Batch] Failed — model "${modelImage.file.name}", garment group ${group.id}: ${error.message || 'Unknown error'}`);
           
           // Update item status to 'error'
           setResults(prev => prev.map(r => 
@@ -165,6 +173,7 @@ export default function App() {
           if (error.message.includes("API Key") || error.message.includes("403")) {
              hasGlobalError = true;
              setErrorMessage("API Authorization failed. stopping batch.");
+             addLog('error', '[Batch] API authorization failed — stopping batch');
              break;
           }
         }
@@ -180,8 +189,10 @@ export default function App() {
     setStatus(AppStatus.COOLDOWN);
     if (hasGlobalError) {
       setCooldown(COOLDOWN_ERROR_SECONDS);
+      addLog('warn', `[Batch] Finished with errors — cooldown ${COOLDOWN_ERROR_SECONDS}s`);
     } else {
       setCooldown(COOLDOWN_SUCCESS_SECONDS);
+      addLog('info', `[Batch] All ${totalCombinations} item(s) processed successfully — cooldown ${COOLDOWN_SUCCESS_SECONDS}s`);
     }
   };
 
@@ -314,6 +325,7 @@ export default function App() {
           </div>
         </div>
       </main>
+      <DebugConsole />
     </div>
   );
 }
