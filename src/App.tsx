@@ -4,7 +4,7 @@ import UploadZone from './components/UploadZone';
 import GarmentList from './components/GarmentList';
 import ResultsGallery from './components/ResultsGallery';
 import DebugConsole from './components/DebugConsole';
-import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult } from './types';
+import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptModel, ImageModel } from './types';
 import { analyzeImages, generateTryOnImage } from './services/geminiService';
 import { addLog } from './services/debugLogger';
 import { COOLDOWN_SUCCESS_SECONDS, COOLDOWN_ERROR_SECONDS, DEFAULT_PROMPT_MAKER } from './constants';
@@ -14,7 +14,9 @@ export default function App() {
   const [apiKey, setApiKey] = useState('');
   const [settings, setSettings] = useState<GenerationSettings>({
     resolution: '1K',
-    aspectRatio: '3:4'
+    aspectRatio: '3:4',
+    promptModel: 'gemini-3-pro-preview',
+    imageModel: 'gemini-3-pro-image-preview',
   });
   
   // Input State
@@ -130,7 +132,8 @@ export default function App() {
             apiKey,
             modelImage.file,
             group.files.map(f => f.file),
-            promptInstructions
+            promptInstructions,
+            settings.promptModel
           );
           addLog('info', `[Batch] Analysis complete for model "${modelImage.file.name}" (${analysisPrompt.length} chars)`);
 
@@ -147,7 +150,8 @@ export default function App() {
             analysisPrompt,
             modelImage.file,
             group.files.map(f => f.file),
-            settings
+            settings,
+            settings.imageModel
           );
           addLog('info', `[Batch] Image generated for model "${modelImage.file.name}", garment group ${group.id}`);
 

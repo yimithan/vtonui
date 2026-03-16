@@ -31,11 +31,12 @@ export const analyzeImages = async (
   apiKey: string,
   modelImage: File,
   garmentImages: File[],
-  promptInstructions: string
+  promptInstructions: string,
+  promptModel: string = 'gemini-3-pro-preview'
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key is required");
 
-  addLog('info', `[analyzeImages] Starting analysis — model: "${modelImage.name}", garments: ${garmentImages.map(f => f.name).join(', ')}`);
+  addLog('info', `[analyzeImages] Starting analysis — model: "${modelImage.name}", garments: ${garmentImages.map(f => f.name).join(', ')}, promptModel: ${promptModel}`);
 
   const ai = new GoogleGenAI({ apiKey });
   
@@ -62,7 +63,7 @@ export const analyzeImages = async (
   }
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-image-preview', 
+    model: promptModel, 
     contents: { parts: parts },
     config: {
       safetySettings: SAFETY_SETTINGS,
@@ -101,11 +102,12 @@ export const generateTryOnImage = async (
   prompt: string,
   modelImage: File,
   garmentImages: File[],
-  settings: { resolution: string; aspectRatio: string }
+  settings: { resolution: string; aspectRatio: string },
+  imageModel: string = 'gemini-3-pro-image-preview'
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key is required");
 
-  addLog('info', `[generateTryOnImage] Starting generation — model: "${modelImage.name}", resolution: ${settings.resolution}, aspect: ${settings.aspectRatio}`);
+  addLog('info', `[generateTryOnImage] Starting generation — model: "${modelImage.name}", resolution: ${settings.resolution}, aspect: ${settings.aspectRatio}, imageModel: ${imageModel}`);
 
   const ai = new GoogleGenAI({ apiKey });
   
@@ -132,7 +134,7 @@ export const generateTryOnImage = async (
   }
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-image-preview',
+    model: imageModel,
     contents: { parts: parts },
     config: {
       imageConfig: {
