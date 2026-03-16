@@ -14,13 +14,14 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 - **Batch Processing** — Queue multiple models and garments; each model will be dressed with every garment in a nested batch loop (Model1 × [Garment1, Garment2, ...], Model2 × [Garment1, Garment2, ...], etc.).
 - **Results Gallery** — View real-time status for each model-garment combination (pending → analyzing → generating → success/error) and download finished results.
 - **Custom Prompt Text** — Optionally provide a custom prompt text to override the default analysis behavior.
+- **Model Selection** — Choose independently which Gemini model to use for prompt generation and for image generation.
 - **Generation Settings** — Configure output resolution (1K / 2K / 4K) and aspect ratio (1:1, 3:4, 4:3, 9:16, 16:9).
 - **Cooldown Timer** — Built-in quota protection with a configurable cooldown between batch runs.
 
 ## How It Works
 
-1. **Analyze** — For each model-garment combination, the model image and garment images are sent to `gemini-3-pro-image-preview` along with prompt instructions. The model returns a detailed text prompt describing how the model should look wearing the garment.
-2. **Generate** — The text prompt, model image, and garment images are sent back to `gemini-3-pro-image-preview` with image generation config (resolution & aspect ratio). The model returns a generated image of the virtual try-on result.
+1. **Analyze** — For each model-garment combination, the model image and garment images are sent to the selected **Prompt Generation Model** (default: `gemini-3-pro-preview`) along with prompt instructions. The model returns a detailed text prompt describing how the model should look wearing the garment.
+2. **Generate** — The text prompt, model image, and garment images are sent to the selected **Image Generation Model** (default: `gemini-3-pro-image-preview`) with image generation config (resolution & aspect ratio). The model returns a generated image of the virtual try-on result.
 3. **Batch Loop** — The process repeats for all model-garment combinations: Model1 with all garments, then Model2 with all garments, etc.
 
 ## Tech Stack
@@ -80,6 +81,8 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 
 | Setting | Options | Default |
 |---------|---------|---------|
+| Prompt Generation Model | gemini-3-pro-preview, gemini-3.1-pro-preview, gemini-3.1-flash-lite-preview | gemini-3-pro-preview |
+| Image Generation Model | gemini-3-pro-image-preview, gemini-3.1-flash-image-preview | gemini-3-pro-image-preview |
 | Resolution | 1K (Standard), 2K (High), 4K (Ultra) | 1K |
 | Aspect Ratio | 1:1, 3:4, 4:3, 9:16, 16:9 | 3:4 |
 

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Settings, Key, AlertCircle, FileText } from 'lucide-react';
-import { GenerationSettings } from '../types';
+import { Settings, Key, AlertCircle, FileText, Cpu } from 'lucide-react';
+import { GenerationSettings, PromptModel, ImageModel } from '../types';
 
 interface SidebarProps {
   apiKey: string;
@@ -74,6 +74,43 @@ const Sidebar: React.FC<SidebarProps> = ({
           <p id="custom-prompt-help" className="text-xs text-slate-500">
             Optional. Enter a custom prompt to override the default analysis behavior.
           </p>
+        </div>
+
+        <div className="h-px bg-slate-700 my-4" />
+
+        {/* Model Selection Section */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <Cpu className="w-4 h-4" />
+            Model Selection
+          </h2>
+
+          <div className="space-y-2">
+            <label className="text-sm text-slate-300">Prompt Generation Model</label>
+            <select
+              value={settings.promptModel}
+              onChange={(e) => setSettings({ ...settings, promptModel: e.target.value as PromptModel })}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+              disabled={isProcessing}
+            >
+              <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+              <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+              <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm text-slate-300">Image Generation Model</label>
+            <select
+              value={settings.imageModel}
+              onChange={(e) => setSettings({ ...settings, imageModel: e.target.value as ImageModel })}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+              disabled={isProcessing}
+            >
+              <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
+              <option value="gemini-3.1-flash-image-preview">gemini-3.1-flash-image-preview</option>
+            </select>
+          </div>
         </div>
 
         <div className="h-px bg-slate-700 my-4" />
