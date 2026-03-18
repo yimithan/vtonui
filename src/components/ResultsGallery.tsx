@@ -3,6 +3,18 @@ import { Download, Loader2, AlertTriangle, CheckCircle2, Archive } from 'lucide-
 import { TryOnResult } from '../types';
 import JSZip from 'jszip';
 
+const getBaseName = (modelFileName: string): string => {
+  const lastDot = modelFileName.lastIndexOf('.');
+  return (lastDot > 0 && lastDot < modelFileName.length - 1)
+    ? modelFileName.slice(0, lastDot)
+    : modelFileName;
+};
+
+const getOutputFilename = (modelFileName: string, index: number = 0): string => {
+  const base = getBaseName(modelFileName);
+  return index === 0 ? `${base}_output.png` : `${base}_output_${index + 1}.png`;
+};
+
 interface ResultsGalleryProps {
   results: TryOnResult[];
 }
@@ -14,6 +26,17 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
     () => results.filter(r => r.status === 'success' && r.generatedImage),
     [results]
   );
+
+  // Build collision-aware output filenames for all results
+  const outputFilenames = useMemo(() => {
+    const counts = new Map<string, number>();
+    return results.map(result => {
+      const base = getBaseName(result.modelFileName);
+      const count = counts.get(base) || 0;
+      counts.set(base, count + 1);
+      return getOutputFilename(result.modelFileName, count);
+    });
+  }, [results]);
 
   const handleDownloadAll = async () => {
     setIsCreatingZip(true);
@@ -34,7 +57,8 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
           const blob = await response.blob();
           
           // Add to ZIP with filename
-          zip.file(`try-on-result-${i + 1}.png`, blob);
+          const resultIdx = results.indexOf(result);
+          zip.file(outputFilenames[resultIdx], blob);
         } catch (fetchError) {
           console.error(`Error fetching image ${i + 1}:`, fetchError);
           throw new Error(`Failed to download image ${i + 1} of ${finishedResults.length}`);
@@ -145,7 +169,7 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-4">
                         <a 
                           href={result.generatedImage} 
-                          download={`try-on-result-${idx + 1}.png`}
+                          download={outputFilenames[idx]}
                           className="bg-white text-slate-900 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 hover:bg-slate-200 transition-colors shadow-lg"
                         >
                           <Download className="w-4 h-4" />

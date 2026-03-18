@@ -29,6 +29,7 @@ export interface GarmentGroup {
 export interface TryOnResult {
   modelId: string; // ID of the model image used
   modelPreview: string; // Preview of the model image
+  modelFileName: string; // Original filename of the uploaded model image
   garmentId: string;
   garmentPreview: string; // Thumbnail of the garment
   generatedImage?: string;

@@ -82,6 +82,7 @@ export default function App() {
         initialResults.push({
           modelId: `model-${modelIdx}`, // Use index-based ID
           modelPreview: modelImages[modelIdx].preview,
+          modelFileName: modelImages[modelIdx].file.name,
           garmentId: group.id,
           garmentPreview: group.files[0].preview,
           status: 'pending'
