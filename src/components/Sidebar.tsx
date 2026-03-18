@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Settings, Key, AlertCircle, FileText, Cpu } from 'lucide-react';
 import { GenerationSettings, PromptModel, ImageModel } from '../types';
+import { DEFAULT_PROMPT_MAKER, PROMPT_BAG_ON_MODEL, PROMPT_BAG_NO_MODEL } from '../constants';
+
+type PromptMode = 'default' | 'bag-on-model' | 'bag-no-model' | 'custom';
 
 interface SidebarProps {
   apiKey: string;
@@ -19,10 +22,33 @@ const Sidebar: React.FC<SidebarProps> = ({
   isProcessing,
   onPromptConfigChange
 }) => {
+  const [promptMode, setPromptMode] = useState<PromptMode>('default');
+  const [customPromptText, setCustomPromptText] = useState('');
 
-  const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value.trim();
-    onPromptConfigChange(value || null);
+  const handlePromptModeChange = (mode: PromptMode) => {
+    setPromptMode(mode);
+    if (mode === 'default') {
+      onPromptConfigChange(null);
+    } else if (mode === 'bag-on-model') {
+      onPromptConfigChange(PROMPT_BAG_ON_MODEL);
+    } else if (mode === 'bag-no-model') {
+      onPromptConfigChange(PROMPT_BAG_NO_MODEL);
+    } else {
+      onPromptConfigChange(customPromptText.trim() || null);
+    }
+  };
+
+  const handleCustomPromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setCustomPromptText(value);
+    onPromptConfigChange(value.trim() || null);
+  };
+
+  const getPreviewText = (): string => {
+    if (promptMode === 'default') return DEFAULT_PROMPT_MAKER;
+    if (promptMode === 'bag-on-model') return PROMPT_BAG_ON_MODEL;
+    if (promptMode === 'bag-no-model') return PROMPT_BAG_NO_MODEL;
+    return '';
   };
 
   return (
@@ -58,22 +84,51 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Prompt Configuration Section */}
         <div className="space-y-2">
-          <label htmlFor="custom-prompt" className="text-sm font-medium text-slate-300 flex items-center gap-2">
+          <label htmlFor="prompt-mode" className="text-sm font-medium text-slate-300 flex items-center gap-2">
             <FileText className="w-4 h-4" />
-            Custom Prompt (Optional)
+            Prompt Mode
           </label>
-          <textarea
-            id="custom-prompt"
-            aria-describedby="custom-prompt-help"
-            onChange={handlePromptChange}
-            placeholder="Enter custom prompt instructions (optional)"
-            rows={6}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y"
+          <select
+            id="prompt-mode"
+            value={promptMode}
+            onChange={(e) => handlePromptModeChange(e.target.value as PromptMode)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
             disabled={isProcessing}
-          />
-          <p id="custom-prompt-help" className="text-xs text-slate-500">
-            Optional. Enter a custom prompt to override the default analysis behavior.
-          </p>
+          >
+            <option value="default">Default model dressing</option>
+            <option value="bag-on-model">Bag wore on model</option>
+            <option value="bag-no-model">Bag with no model</option>
+            <option value="custom">Custom prompt</option>
+          </select>
+
+          {promptMode !== 'custom' && (
+            <textarea
+              readOnly
+              value={getPreviewText()}
+              rows={8}
+              className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-xs text-slate-400 outline-none resize-y mt-2"
+              aria-label="Prompt preview"
+            />
+          )}
+
+          {promptMode === 'custom' && (
+            <textarea
+              id="custom-prompt"
+              aria-describedby="custom-prompt-help"
+              value={customPromptText}
+              onChange={handleCustomPromptChange}
+              placeholder="Enter custom prompt instructions"
+              rows={8}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y mt-2"
+              disabled={isProcessing}
+            />
+          )}
+
+          {promptMode === 'custom' && (
+            <p id="custom-prompt-help" className="text-xs text-slate-500">
+              Enter a custom prompt to override the default analysis behavior.
+            </p>
+          )}
         </div>
 
         <div className="h-px bg-slate-700 my-4" />
