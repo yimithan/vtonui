@@ -37,3 +37,4 @@ Output ONLY the final descriptive prompt as plain text. No JSON, no markdown, no
 
 export const COOLDOWN_SUCCESS_SECONDS = 120;
 export const COOLDOWN_ERROR_SECONDS = 10;
+export const MAX_CONCURRENT_TRYON = 3;

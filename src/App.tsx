@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import UploadZone from './components/UploadZone';
 import GarmentList from './components/GarmentList';
@@ -7,7 +7,7 @@ import DebugConsole from './components/DebugConsole';
 import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptModel, ImageModel } from './types';
 import { analyzeImages, generateTryOnImage } from './services/geminiService';
 import { addLog } from './services/debugLogger';
-import { COOLDOWN_SUCCESS_SECONDS, COOLDOWN_ERROR_SECONDS, DEFAULT_PROMPT_MAKER } from './constants';
+import { COOLDOWN_SUCCESS_SECONDS, COOLDOWN_ERROR_SECONDS, DEFAULT_PROMPT_MAKER, MAX_CONCURRENT_TRYON } from './constants';
 import { Loader2, AlertTriangle, Wand2, Clock, StopCircle } from 'lucide-react';
 
 export default function App() {
@@ -35,6 +35,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const [shouldAbort, setShouldAbort] = useState(false);
+  const shouldAbortRef = useRef(false);
 
   // Cooldown Timer
   useEffect(() => {
@@ -68,19 +69,20 @@ export default function App() {
     // Reset / Init
     setErrorMessage(null);
     setShouldAbort(false);
+    shouldAbortRef.current = false;
     setStatus(AppStatus.BATCH_PROCESSING);
-    
+
     // Calculate total combinations: models × garments
     const totalCombinations = modelImages.length * validGroups.length;
     setBatchProgress({ current: 0, total: totalCombinations });
-    addLog('info', `[Batch] Starting batch — ${modelImages.length} model(s) × ${validGroups.length} garment group(s) = ${totalCombinations} combination(s)`);
-    
+    addLog('info', `[Batch] Starting batch — ${modelImages.length} model(s) × ${validGroups.length} garment group(s) = ${totalCombinations} combination(s) (max ${MAX_CONCURRENT_TRYON} concurrent)`);
+
     // Initialize results with 'pending' state for each model-garment combination
     const initialResults: TryOnResult[] = [];
     for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
       for (const group of validGroups) {
         initialResults.push({
-          modelId: `model-${modelIdx}`, // Use index-based ID
+          modelId: `model-${modelIdx}`,
           modelPreview: modelImages[modelIdx].preview,
           modelFileName: modelImages[modelIdx].file.name,
           garmentId: group.id,
@@ -91,108 +93,143 @@ export default function App() {
     }
     setResults(initialResults);
 
-    let hasGlobalError = false;
-    let currentProgress = 0;
-
-    // Nested Batch Loop: For each model, process all garments
+    // Build flat list of all combinations
+    const combinations: { modelIdx: number; group: GarmentGroup }[] = [];
     for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
+      for (const group of validGroups) {
+        combinations.push({ modelIdx, group });
+      }
+    }
+
+    let hasGlobalError = false;
+    let completedCount = 0;
+
+    // Process a single model-garment combination (analyze → generate, consecutive)
+    const processCombination = async ({ modelIdx, group }: { modelIdx: number; group: GarmentGroup }) => {
       const modelImage = modelImages[modelIdx];
       const modelId = `model-${modelIdx}`;
-      
-      for (const group of validGroups) {
-        // Check if user requested abort
-        if (shouldAbort) {
-          hasGlobalError = true; // This will break the outer loop
-          setErrorMessage("Batch processing aborted by user.");
-          addLog('warn', '[Batch] Aborted by user');
-          // Mark all remaining pending items as error
-          setResults(prev => prev.map(r => 
-            r.status === 'pending' || r.status === 'analyzing' || r.status === 'generating'
-              ? { ...r, status: 'error', error: 'Aborted by user' } 
+
+      if (shouldAbortRef.current) {
+        setResults(prev => prev.map(r =>
+          (r.modelId === modelId && r.garmentId === group.id)
+            ? { ...r, status: 'error', error: 'Aborted by user' }
+            : r
+        ));
+        return;
+      }
+
+      addLog('info', `[Batch] Processing — model: "${modelImage.file.name}", garment group: ${group.id}`);
+
+      // Update item status to 'analyzing'
+      setResults(prev => prev.map(r =>
+        (r.modelId === modelId && r.garmentId === group.id)
+          ? { ...r, status: 'analyzing' }
+          : r
+      ));
+
+      try {
+        const promptInstructions = customPromptConfig || DEFAULT_PROMPT_MAKER;
+
+        // Step 1: Analyze
+        const analysisPrompt = await analyzeImages(
+          apiKey,
+          modelImage.file,
+          group.files.map(f => f.file),
+          promptInstructions,
+          settings.promptModel
+        );
+        addLog('info', `[Batch] Analysis complete for model "${modelImage.file.name}" (${analysisPrompt.length} chars)`);
+
+        if (shouldAbortRef.current) {
+          setResults(prev => prev.map(r =>
+            (r.modelId === modelId && r.garmentId === group.id)
+              ? { ...r, status: 'error', error: 'Aborted by user' }
               : r
           ));
-          break;
+          return;
         }
-        
-        currentProgress++;
-        setBatchProgress({ current: currentProgress, total: totalCombinations });
-        addLog('info', `[Batch] Processing ${currentProgress}/${totalCombinations} — model: "${modelImage.file.name}", garment group: ${group.id}`);
 
-        // Update item status to 'analyzing'
-        setResults(prev => prev.map(r => 
-          (r.modelId === modelId && r.garmentId === group.id) 
-            ? { ...r, status: 'analyzing' } 
+        // Update item status to 'generating'
+        setResults(prev => prev.map(r =>
+          (r.modelId === modelId && r.garmentId === group.id)
+            ? { ...r, status: 'generating' }
             : r
         ));
 
-        try {
-          const promptInstructions = customPromptConfig || DEFAULT_PROMPT_MAKER;
+        // Step 2: Generate
+        const resultImage = await generateTryOnImage(
+          apiKey,
+          analysisPrompt,
+          modelImage.file,
+          group.files.map(f => f.file),
+          settings,
+          settings.imageModel
+        );
+        addLog('info', `[Batch] Image generated for model "${modelImage.file.name}", garment group ${group.id}`);
 
-          // Step 1: Analyze
-          const analysisPrompt = await analyzeImages(
-            apiKey,
-            modelImage.file,
-            group.files.map(f => f.file),
-            promptInstructions,
-            settings.promptModel
-          );
-          addLog('info', `[Batch] Analysis complete for model "${modelImage.file.name}" (${analysisPrompt.length} chars)`);
+        // Update item status to 'success'
+        setResults(prev => prev.map(r =>
+          (r.modelId === modelId && r.garmentId === group.id)
+            ? { ...r, status: 'success', generatedImage: resultImage }
+            : r
+        ));
 
-          // Update item status to 'generating'
-          setResults(prev => prev.map(r => 
-            (r.modelId === modelId && r.garmentId === group.id) 
-              ? { ...r, status: 'generating' } 
-              : r
-          ));
+      } catch (error: any) {
+        console.error(`Error processing model ${modelImage.file.name} with garment ${group.id}:`, error);
+        addLog('error', `[Batch] Failed — model "${modelImage.file.name}", garment group ${group.id}: ${error.message || 'Unknown error'}`);
 
-          // Step 2: Generate
-          const resultImage = await generateTryOnImage(
-            apiKey,
-            analysisPrompt,
-            modelImage.file,
-            group.files.map(f => f.file),
-            settings,
-            settings.imageModel
-          );
-          addLog('info', `[Batch] Image generated for model "${modelImage.file.name}", garment group ${group.id}`);
+        // Update item status to 'error'
+        setResults(prev => prev.map(r =>
+          (r.modelId === modelId && r.garmentId === group.id)
+            ? { ...r, status: 'error', error: error.message || "Unknown error" }
+            : r
+        ));
 
-          // Update item status to 'success'
-          setResults(prev => prev.map(r => 
-            (r.modelId === modelId && r.garmentId === group.id) 
-              ? { ...r, status: 'success', generatedImage: resultImage } 
-              : r
-          ));
-
-        } catch (error: any) {
-          console.error(`Error processing model ${modelImage.file.name} with garment ${group.id}:`, error);
-          addLog('error', `[Batch] Failed — model "${modelImage.file.name}", garment group ${group.id}: ${error.message || 'Unknown error'}`);
-          
-          // Update item status to 'error'
-          setResults(prev => prev.map(r => 
-            (r.modelId === modelId && r.garmentId === group.id) 
-              ? { ...r, status: 'error', error: error.message || "Unknown error" } 
-              : r
-          ));
-
-          // API Key veya Yetki hatası varsa döngüyü kır
-          if (error.message.includes("API Key") || error.message.includes("403")) {
-             hasGlobalError = true;
-             setErrorMessage("API Authorization failed. stopping batch.");
-             addLog('error', '[Batch] API authorization failed — stopping batch');
-             break;
-          }
+        // API Key or auth error — stop all workers
+        if (error.message.includes("API Key") || error.message.includes("403")) {
+          hasGlobalError = true;
+          shouldAbortRef.current = true;
+          setErrorMessage("API Authorization failed. stopping batch.");
+          addLog('error', '[Batch] API authorization failed — stopping batch');
         }
+      } finally {
+        completedCount++;
+        setBatchProgress({ current: completedCount, total: totalCombinations });
       }
-      
-      // Break outer loop if global error
-      if (hasGlobalError) {
-        break;
+    };
+
+    // Concurrent worker pool: up to MAX_CONCURRENT_TRYON workers run simultaneously.
+    // Each worker picks the next available combination until the queue is exhausted.
+    // Within each combination, analyze → generate remain consecutive.
+    let queueIndex = 0;
+    const worker = async () => {
+      while (!shouldAbortRef.current) {
+        // JS is single-threaded: incrementing queueIndex here is safe across concurrent async tasks
+        const idx = queueIndex++;
+        if (idx >= combinations.length) break;
+        await processCombination(combinations[idx]);
+      }
+    };
+
+    const workerCount = Math.min(MAX_CONCURRENT_TRYON, combinations.length);
+    await Promise.all(Array.from({ length: workerCount }, worker));
+
+    // Mark any items still pending/in-progress as aborted
+    if (shouldAbortRef.current) {
+      setResults(prev => prev.map(r =>
+        r.status === 'pending' || r.status === 'analyzing' || r.status === 'generating'
+          ? { ...r, status: 'error', error: 'Aborted by user' }
+          : r
+      ));
+      if (!hasGlobalError) {
+        setErrorMessage("Batch processing aborted by user.");
+        addLog('warn', '[Batch] Aborted by user');
       }
     }
 
     // Finished Batch
     setStatus(AppStatus.COOLDOWN);
-    if (hasGlobalError) {
+    if (hasGlobalError || shouldAbortRef.current) {
       setCooldown(COOLDOWN_ERROR_SECONDS);
       addLog('warn', `[Batch] Finished with errors — cooldown ${COOLDOWN_ERROR_SECONDS}s`);
     } else {
@@ -203,6 +240,7 @@ export default function App() {
 
   const handleAbort = () => {
     setShouldAbort(true);
+    shouldAbortRef.current = true;
   };
 
   const isProcessing = status === AppStatus.BATCH_PROCESSING;
