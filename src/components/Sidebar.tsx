@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { Settings, Key, AlertCircle, FileText, Cpu } from 'lucide-react';
-import { GenerationSettings, PromptModel, ImageModel } from '../types';
+import { GenerationSettings, PromptModel, ImageModel, PromptMode } from '../types';
 import { DEFAULT_PROMPT_MAKER, PROMPT_BAG_ON_MODEL, PROMPT_BAG_NO_MODEL, PROMPT_FLAT_LAY } from '../constants';
-
-type PromptMode = 'default' | 'flat-lay' | 'bag-on-model' | 'bag-no-model' | 'custom';
 
 interface SidebarProps {
   apiKey: string;
@@ -11,7 +9,7 @@ interface SidebarProps {
   settings: GenerationSettings;
   setSettings: (settings: GenerationSettings) => void;
   isProcessing: boolean;
-  onPromptConfigChange: (content: string | null) => void;
+  onPromptsByModeChange: (prompts: Record<PromptMode, string>) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -20,10 +18,19 @@ const Sidebar: React.FC<SidebarProps> = ({
   settings, 
   setSettings, 
   isProcessing,
-  onPromptConfigChange
+  onPromptsByModeChange
 }) => {
   const [promptMode, setPromptMode] = useState<PromptMode>('default');
-  const [promptText, setPromptText] = useState<string>(DEFAULT_PROMPT_MAKER);
+
+  const [promptsByMode, setPromptsByMode] = useState<Record<PromptMode, string>>({
+    'default': DEFAULT_PROMPT_MAKER,
+    'flat-lay': PROMPT_FLAT_LAY,
+    'bag-on-model': PROMPT_BAG_ON_MODEL,
+    'bag-no-model': PROMPT_BAG_NO_MODEL,
+    'custom': '',
+  });
+
+  const promptText = promptsByMode[promptMode];
 
   const modeDefaults: Record<PromptMode, string> = {
     'default': DEFAULT_PROMPT_MAKER,
@@ -35,15 +42,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const handlePromptModeChange = (mode: PromptMode) => {
     setPromptMode(mode);
-    const text = modeDefaults[mode] ?? '';
-    setPromptText(text);
-    onPromptConfigChange(text || null);
   };
 
   const handlePromptTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
-    setPromptText(value);
-    onPromptConfigChange(value.trim() || null);
+    const updated = { ...promptsByMode, [promptMode]: value };
+    setPromptsByMode(updated);
+    onPromptsByModeChange(updated);
   };
 
   return (
@@ -97,16 +102,32 @@ const Sidebar: React.FC<SidebarProps> = ({
             <option value="custom">Custom prompt</option>
           </select>
 
-          <textarea
-            id="prompt-text"
-            aria-describedby="prompt-text-help"
-            value={promptText}
-            onChange={handlePromptTextChange}
-            placeholder={promptMode === 'custom' ? 'Enter custom prompt instructions' : ''}
-            rows={8}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y mt-2"
-            disabled={isProcessing}
-          />
+          <div className="relative mt-2">
+            <textarea
+              id="prompt-text"
+              aria-describedby="prompt-text-help"
+              value={promptText}
+              onChange={handlePromptTextChange}
+              placeholder={promptMode === 'custom' ? 'Enter custom prompt instructions' : ''}
+              rows={8}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y"
+              disabled={isProcessing}
+            />
+            {promptMode !== 'custom' && promptText !== modeDefaults[promptMode] && (
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = { ...promptsByMode, [promptMode]: modeDefaults[promptMode] };
+                  setPromptsByMode(updated);
+                  onPromptsByModeChange(updated);
+                }}
+                disabled={isProcessing}
+                className="absolute top-2 right-2 text-xs text-slate-400 hover:text-indigo-300 bg-slate-800/80 px-2 py-0.5 rounded transition-colors"
+              >
+                Reset
+              </button>
+            )}
+          </div>
           <p id="prompt-text-help" className="text-xs text-slate-500">
             Edit the prompt to customize the analysis behavior.
           </p>

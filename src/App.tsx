@@ -4,10 +4,11 @@ import UploadZone from './components/UploadZone';
 import GarmentList from './components/GarmentList';
 import ResultsGallery from './components/ResultsGallery';
 import DebugConsole from './components/DebugConsole';
-import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptModel, ImageModel } from './types';
+import PromptModeSelector from './components/PromptModeSelector';
+import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptModel, ImageModel, PromptMode } from './types';
 import { analyzeImages, generateTryOnImage } from './services/geminiService';
 import { addLog } from './services/debugLogger';
-import { COOLDOWN_SUCCESS_SECONDS, COOLDOWN_ERROR_SECONDS, DEFAULT_PROMPT_MAKER, MAX_CONCURRENT_TRYON } from './constants';
+import { COOLDOWN_SUCCESS_SECONDS, COOLDOWN_ERROR_SECONDS, DEFAULT_PROMPT_MAKER, MAX_CONCURRENT_TRYON, PROMPT_BAG_ON_MODEL, PROMPT_BAG_NO_MODEL, PROMPT_FLAT_LAY } from './constants';
 import { Loader2, AlertTriangle, Wand2, Clock, StopCircle } from 'lucide-react';
 
 export default function App() {
@@ -25,8 +26,15 @@ export default function App() {
     { id: '1', files: [] } // Start with one empty group
   ]);
   
-  // Custom Prompt Configuration State
-  const [customPromptConfig, setCustomPromptConfig] = useState<string | null>(null);
+  // Prompt Modes State
+  const [promptsByMode, setPromptsByMode] = useState<Record<PromptMode, string>>({
+    'default': DEFAULT_PROMPT_MAKER,
+    'flat-lay': PROMPT_FLAT_LAY,
+    'bag-on-model': PROMPT_BAG_ON_MODEL,
+    'bag-no-model': PROMPT_BAG_NO_MODEL,
+    'custom': '',
+  });
+  const [selectedStudioModes, setSelectedStudioModes] = useState<PromptMode[]>(['default']);
 
   // Execution State
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
@@ -65,6 +73,10 @@ export default function App() {
       setErrorMessage("Please upload at least one garment.");
       return;
     }
+    if (selectedStudioModes.length === 0) {
+      setErrorMessage("Please select at least one prompt mode.");
+      return;
+    }
 
     // Reset / Init
     setErrorMessage(null);
@@ -72,63 +84,68 @@ export default function App() {
     shouldAbortRef.current = false;
     setStatus(AppStatus.BATCH_PROCESSING);
 
-    // Calculate total combinations: models × garments
-    const totalCombinations = modelImages.length * validGroups.length;
+    // Calculate total combinations: modes × models × garments
+    const totalCombinations = selectedStudioModes.length * modelImages.length * validGroups.length;
     setBatchProgress({ current: 0, total: totalCombinations });
-    addLog('info', `[Batch] Starting batch — ${modelImages.length} model(s) × ${validGroups.length} garment group(s) = ${totalCombinations} combination(s) (max ${MAX_CONCURRENT_TRYON} concurrent)`);
+    addLog('info', `[Batch] Starting batch — ${selectedStudioModes.length} mode(s) × ${modelImages.length} model(s) × ${validGroups.length} garment group(s) = ${totalCombinations} combination(s) (max ${MAX_CONCURRENT_TRYON} concurrent)`);
 
-    // Initialize results with 'pending' state for each model-garment combination
+    // Initialize results with 'pending' state for each mode-model-garment combination
     const initialResults: TryOnResult[] = [];
-    for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
-      for (const group of validGroups) {
-        initialResults.push({
-          modelId: `model-${modelIdx}`,
-          modelPreview: modelImages[modelIdx].preview,
-          modelFileName: modelImages[modelIdx].file.name,
-          garmentId: group.id,
-          garmentPreview: group.files[0].preview,
-          status: 'pending'
-        });
+    for (const mode of selectedStudioModes) {
+      for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
+        for (const group of validGroups) {
+          initialResults.push({
+            modelId: `model-${modelIdx}`,
+            modelPreview: modelImages[modelIdx].preview,
+            modelFileName: modelImages[modelIdx].file.name,
+            garmentId: group.id,
+            garmentPreview: group.files[0].preview,
+            promptMode: mode,
+            status: 'pending'
+          });
+        }
       }
     }
     setResults(initialResults);
 
     // Build flat list of all combinations
-    const combinations: { modelIdx: number; group: GarmentGroup }[] = [];
-    for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
-      for (const group of validGroups) {
-        combinations.push({ modelIdx, group });
+    const combinations: { modelIdx: number; group: GarmentGroup; promptMode: PromptMode }[] = [];
+    for (const mode of selectedStudioModes) {
+      for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
+        for (const group of validGroups) {
+          combinations.push({ modelIdx, group, promptMode: mode });
+        }
       }
     }
 
     let hasGlobalError = false;
     let completedCount = 0;
 
-    // Process a single model-garment combination (analyze → generate, consecutive)
-    const processCombination = async ({ modelIdx, group }: { modelIdx: number; group: GarmentGroup }) => {
+    // Process a single mode-model-garment combination (analyze → generate, consecutive)
+    const processCombination = async ({ modelIdx, group, promptMode }: { modelIdx: number; group: GarmentGroup; promptMode: PromptMode }) => {
       const modelImage = modelImages[modelIdx];
       const modelId = `model-${modelIdx}`;
 
       if (shouldAbortRef.current) {
         setResults(prev => prev.map(r =>
-          (r.modelId === modelId && r.garmentId === group.id)
+          (r.modelId === modelId && r.garmentId === group.id && r.promptMode === promptMode)
             ? { ...r, status: 'error', error: 'Aborted by user' }
             : r
         ));
         return;
       }
 
-      addLog('info', `[Batch] Processing — model: "${modelImage.file.name}", garment group: ${group.id}`);
+      addLog('info', `[Batch] Processing — mode: "${promptMode}", model: "${modelImage.file.name}", garment group: ${group.id}`);
 
       // Update item status to 'analyzing'
       setResults(prev => prev.map(r =>
-        (r.modelId === modelId && r.garmentId === group.id)
+        (r.modelId === modelId && r.garmentId === group.id && r.promptMode === promptMode)
           ? { ...r, status: 'analyzing' }
           : r
       ));
 
       try {
-        const promptInstructions = customPromptConfig || DEFAULT_PROMPT_MAKER;
+        const promptInstructions = promptsByMode[promptMode] || DEFAULT_PROMPT_MAKER;
 
         // Step 1: Analyze
         const analysisPrompt = await analyzeImages(
@@ -138,11 +155,11 @@ export default function App() {
           promptInstructions,
           settings.promptModel
         );
-        addLog('info', `[Batch] Analysis complete for model "${modelImage.file.name}" (${analysisPrompt.length} chars)`);
+        addLog('info', `[Batch] Analysis complete for mode "${promptMode}", model "${modelImage.file.name}" (${analysisPrompt.length} chars)`);
 
         if (shouldAbortRef.current) {
           setResults(prev => prev.map(r =>
-            (r.modelId === modelId && r.garmentId === group.id)
+            (r.modelId === modelId && r.garmentId === group.id && r.promptMode === promptMode)
               ? { ...r, status: 'error', error: 'Aborted by user' }
               : r
           ));
@@ -151,7 +168,7 @@ export default function App() {
 
         // Update item status to 'generating'
         setResults(prev => prev.map(r =>
-          (r.modelId === modelId && r.garmentId === group.id)
+          (r.modelId === modelId && r.garmentId === group.id && r.promptMode === promptMode)
             ? { ...r, status: 'generating' }
             : r
         ));
@@ -165,22 +182,22 @@ export default function App() {
           settings,
           settings.imageModel
         );
-        addLog('info', `[Batch] Image generated for model "${modelImage.file.name}", garment group ${group.id}`);
+        addLog('info', `[Batch] Image generated for mode "${promptMode}", model "${modelImage.file.name}", garment group ${group.id}`);
 
         // Update item status to 'success'
         setResults(prev => prev.map(r =>
-          (r.modelId === modelId && r.garmentId === group.id)
+          (r.modelId === modelId && r.garmentId === group.id && r.promptMode === promptMode)
             ? { ...r, status: 'success', generatedImage: resultImage }
             : r
         ));
 
       } catch (error: any) {
-        console.error(`Error processing model ${modelImage.file.name} with garment ${group.id}:`, error);
-        addLog('error', `[Batch] Failed — model "${modelImage.file.name}", garment group ${group.id}: ${error.message || 'Unknown error'}`);
+        console.error(`Error processing mode ${promptMode}, model ${modelImage.file.name} with garment ${group.id}:`, error);
+        addLog('error', `[Batch] Failed — mode "${promptMode}", model "${modelImage.file.name}", garment group ${group.id}: ${error.message || 'Unknown error'}`);
 
         // Update item status to 'error'
         setResults(prev => prev.map(r =>
-          (r.modelId === modelId && r.garmentId === group.id)
+          (r.modelId === modelId && r.garmentId === group.id && r.promptMode === promptMode)
             ? { ...r, status: 'error', error: error.message || "Unknown error" }
             : r
         ));
@@ -254,7 +271,7 @@ export default function App() {
         settings={settings} 
         setSettings={setSettings}
         isProcessing={isProcessing}
-        onPromptConfigChange={setCustomPromptConfig}
+        onPromptsByModeChange={setPromptsByMode}
       />
 
       <main className="flex-1 p-8 overflow-y-auto">
@@ -298,6 +315,15 @@ export default function App() {
                    onGroupsChange={setGarmentGroups}
                    disabled={isProcessing || isCooldown}
                  />
+              </div>
+
+              {/* Prompt Mode Selection */}
+              <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 backdrop-blur-sm">
+                <PromptModeSelector
+                  selectedModes={selectedStudioModes}
+                  onSelectionChange={setSelectedStudioModes}
+                  disabled={isProcessing || isCooldown}
+                />
               </div>
 
               {/* Action Button */}

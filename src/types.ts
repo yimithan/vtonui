@@ -11,6 +11,8 @@ export enum AppStatus {
 
 export type ItemStatus = 'pending' | 'analyzing' | 'generating' | 'success' | 'error';
 
+export type PromptMode = 'default' | 'flat-lay' | 'bag-on-model' | 'bag-no-model' | 'custom';
+
 export type PromptModel = 'gemini-3-pro-preview' | 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-lite-preview';
 export type ImageModel = 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview';
 
@@ -32,6 +34,7 @@ export interface TryOnResult {
   modelFileName: string; // Original filename of the uploaded model image
   garmentId: string;
   garmentPreview: string; // Thumbnail of the garment
+  promptMode: PromptMode; // Prompt mode used for this result
   generatedImage?: string;
   status: ItemStatus;
   error?: string;
