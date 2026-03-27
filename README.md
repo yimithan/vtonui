@@ -4,12 +4,17 @@
 
 # Gemini Virtual Try-On
 
-A high-fidelity virtual try-on web application powered by [Google Gemini](https://ai.google.dev/) image generation models. Upload one or more model reference photos and one or more garment images, and the app generates realistic images of each model wearing each garment.
+A multi-function image generation web app powered by [Google Gemini](https://ai.google.dev/) models, with:
+- **AI Clothing** (the original virtual try-on flow),
+- **Pose Generator** (100-pose variation generation for each model image),
+- **Facial Enhancement** (placeholder page for now).
 
 View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p0pgz2Lv9gC
 
 ## Features
 
+- **Function Selection Landing Page** — The first screen lets you choose AI Clothing, Pose Generator, or Facial Enhancement.
+- **Persistent API Key Bar** — API key input is pinned in the top-left area and remains visible across all pages.
 - **Model & Garment Upload** — Drag-and-drop upload zones for multiple model reference images and multiple garment image groups.
 - **Batch Processing** — Queue multiple models and garments; each model will be dressed with every garment in a nested batch loop (Model1 × [Garment1, Garment2, ...], Model2 × [Garment1, Garment2, ...], etc.).
 - **Results Gallery** — View real-time status for each model-garment combination (pending → analyzing → generating → success/error) and download finished results.
@@ -47,11 +52,12 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 └── src/
     ├── index.tsx              # React DOM entry point
     ├── index.css              # Global styles
-    ├── App.tsx                # Main application component and batch orchestration
+    ├── App.tsx                # Main application with function selection and per-function workflows
     ├── types.ts               # TypeScript interfaces and enums
     ├── constants.ts           # Default prompt config and cooldown timers
     ├── components/
-    │   ├── Sidebar.tsx        # API key input, prompt JSON upload, generation settings
+    │   ├── Sidebar.tsx        # AI Clothing sidebar settings
+    │   ├── PoseSidebar.tsx    # Pose Generator sidebar settings
     │   ├── UploadZone.tsx     # Reusable file upload component with previews
     │   ├── GarmentList.tsx    # Garment queue manager (add/remove garment groups)
     │   └── ResultsGallery.tsx # Results display with status badges and download links
