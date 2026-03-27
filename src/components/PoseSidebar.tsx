@@ -1,51 +1,24 @@
 import React, { useState } from 'react';
 import { Settings, AlertCircle, FileText, Cpu } from 'lucide-react';
-import { GenerationSettings, PromptModel, ImageModel, PromptMode } from '../types';
-import { DEFAULT_PROMPT_MAKER, PROMPT_BAG_ON_MODEL, PROMPT_BAG_NO_MODEL, PROMPT_FLAT_LAY } from '../constants';
+import { GenerationSettings, ImageModel, PromptModel } from '../types';
+import { DEFAULT_POSE_PROMPT_TEMPLATE } from '../constants';
 
-interface SidebarProps {
+interface PoseSidebarProps {
   settings: GenerationSettings;
   setSettings: (settings: GenerationSettings) => void;
   isProcessing: boolean;
-  onPromptsByModeChange: (prompts: Record<PromptMode, string>) => void;
+  promptTemplate: string;
+  onPromptTemplateChange: (prompt: string) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ 
-  settings, 
-  setSettings, 
+const PoseSidebar: React.FC<PoseSidebarProps> = ({
+  settings,
+  setSettings,
   isProcessing,
-  onPromptsByModeChange
+  promptTemplate,
+  onPromptTemplateChange
 }) => {
-  const [promptMode, setPromptMode] = useState<PromptMode>('default');
-
-  const [promptsByMode, setPromptsByMode] = useState<Record<PromptMode, string>>({
-    'default': DEFAULT_PROMPT_MAKER,
-    'flat-lay': PROMPT_FLAT_LAY,
-    'bag-on-model': PROMPT_BAG_ON_MODEL,
-    'bag-no-model': PROMPT_BAG_NO_MODEL,
-    'custom': '',
-  });
-
-  const promptText = promptsByMode[promptMode];
-
-  const modeDefaults: Record<PromptMode, string> = {
-    'default': DEFAULT_PROMPT_MAKER,
-    'flat-lay': PROMPT_FLAT_LAY,
-    'bag-on-model': PROMPT_BAG_ON_MODEL,
-    'bag-no-model': PROMPT_BAG_NO_MODEL,
-    'custom': '',
-  };
-
-  const handlePromptModeChange = (mode: PromptMode) => {
-    setPromptMode(mode);
-  };
-
-  const handlePromptTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    const updated = { ...promptsByMode, [promptMode]: value };
-    setPromptsByMode(updated);
-    onPromptsByModeChange(updated);
-  };
+  const [promptMode] = useState('pose-preservation');
 
   return (
     <div className="w-80 bg-slate-800 border-r border-slate-700 p-6 flex flex-col h-full overflow-y-auto">
@@ -53,65 +26,39 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-2 bg-indigo-500 rounded-lg">
           <Settings className="w-6 h-6 text-white" />
         </div>
-        <h1 className="text-xl font-bold text-white">AI Clothing</h1>
+        <h1 className="text-xl font-bold text-white">Pose Generator</h1>
       </div>
 
       <div className="space-y-6">
-
-        {/* Prompt Configuration Section */}
         <div className="space-y-2">
-          <label htmlFor="prompt-mode" className="text-sm font-medium text-slate-300 flex items-center gap-2">
+          <label htmlFor="pose-prompt-mode" className="text-sm font-medium text-slate-300 flex items-center gap-2">
             <FileText className="w-4 h-4" />
             Prompt Mode
           </label>
           <select
-            id="prompt-mode"
+            id="pose-prompt-mode"
             value={promptMode}
-            onChange={(e) => handlePromptModeChange(e.target.value as PromptMode)}
             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
-            disabled={isProcessing}
+            disabled
           >
-            <option value="default">Default model dressing</option>
-            <option value="flat-lay">Flat-lay Garment image</option>
-            <option value="bag-on-model">Bag wore on model</option>
-            <option value="bag-no-model">Bag with no model</option>
-            <option value="custom">Custom prompt</option>
+            <option value="pose-preservation">Pose Preservation</option>
           </select>
 
-          <div className="relative mt-2">
-            <textarea
-              id="prompt-text"
-              aria-describedby="prompt-text-help"
-              value={promptText}
-              onChange={handlePromptTextChange}
-              placeholder={promptMode === 'custom' ? 'Enter custom prompt instructions' : ''}
-              rows={8}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y"
-              disabled={isProcessing}
-            />
-            {promptMode !== 'custom' && promptText !== modeDefaults[promptMode] && (
-              <button
-                type="button"
-                onClick={() => {
-                  const updated = { ...promptsByMode, [promptMode]: modeDefaults[promptMode] };
-                  setPromptsByMode(updated);
-                  onPromptsByModeChange(updated);
-                }}
-                disabled={isProcessing}
-                className="absolute top-2 right-2 text-xs text-slate-400 hover:text-indigo-300 bg-slate-800/80 px-2 py-0.5 rounded transition-colors"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-          <p id="prompt-text-help" className="text-xs text-slate-500">
-            Edit the prompt to customize the analysis behavior.
+          <textarea
+            id="pose-prompt-text"
+            value={promptTemplate}
+            onChange={(e) => onPromptTemplateChange(e.target.value)}
+            rows={10}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y mt-2"
+            disabled={isProcessing}
+          />
+          <p className="text-xs text-slate-500">
+            The selected pose text is injected into [INSERT TARGET POSE HERE].
           </p>
         </div>
 
         <div className="h-px bg-slate-700 my-4" />
 
-        {/* Model Selection Section */}
         <div className="space-y-4">
           <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
             <Cpu className="w-4 h-4" />
@@ -148,7 +95,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <div className="h-px bg-slate-700 my-4" />
 
-        {/* Settings Section */}
         <div className="space-y-4">
           <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
             Generation Settings
@@ -185,7 +131,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             </select>
             <div className="flex items-start gap-2 text-xs text-amber-500/80 bg-amber-500/10 p-2 rounded">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>Recommended: 3:4 for full body try-on shots.</span>
+              <span>Recommended: 3:4 for full body pose consistency.</span>
             </div>
           </div>
         </div>
@@ -194,4 +140,4 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 };
 
-export default Sidebar;
+export default PoseSidebar;

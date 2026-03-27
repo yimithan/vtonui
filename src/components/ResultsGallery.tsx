@@ -153,13 +153,20 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
                 </div>
              </div>
              
-             {/* Garment Preview */}
-             <div className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative border border-slate-700">
-                <img src={result.garmentPreview} alt={`Garment input for result ${idx + 1}`} className="w-full h-full object-cover opacity-70" />
-                <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-xs text-white text-center">
-                    Garment
+              {result.garmentPreview && (
+                <div className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative border border-slate-700">
+                   <img src={result.garmentPreview} alt={`Garment input for result ${idx + 1}`} className="w-full h-full object-cover opacity-70" />
+                   <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-xs text-white text-center">
+                       Garment
+                   </div>
                 </div>
-             </div>
+              )}
+
+              {result.variantLabel && (
+                <div className="bg-indigo-500/10 text-indigo-300 p-3 rounded-lg text-xs border border-indigo-500/20">
+                  {result.variantLabel}
+                </div>
+              )}
              
              {result.error && (
                 <div className="bg-red-500/10 text-red-400 p-3 rounded-lg text-xs border border-red-500/20">

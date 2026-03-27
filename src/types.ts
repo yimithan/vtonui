@@ -33,8 +33,9 @@ export interface TryOnResult {
   modelPreview: string; // Preview of the model image
   modelFileName: string; // Original filename of the uploaded model image
   garmentId: string;
-  garmentPreview: string; // Thumbnail of the garment
+  garmentPreview?: string; // Thumbnail of the garment (optional for non-garment workflows)
   promptMode: PromptMode; // Prompt mode used for this result
+  variantLabel?: string; // Optional result variant label (e.g. pose name)
   generatedImage?: string;
   status: ItemStatus;
   error?: string;
