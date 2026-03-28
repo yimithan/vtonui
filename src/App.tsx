@@ -11,8 +11,6 @@ import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResu
 import { analyzeImages, generateTryOnImage, generateFacialEnhancement } from './services/geminiService';
 import { addLog } from './services/debugLogger';
 import {
-  COOLDOWN_SUCCESS_SECONDS,
-  COOLDOWN_ERROR_SECONDS,
   DEFAULT_PROMPT_MAKER,
   MAX_CONCURRENT_TRYON,
   PROMPT_BAG_ON_MODEL,
@@ -23,7 +21,7 @@ import {
   POSE_VARIATIONS_SET_1,
   POSE_VARIATIONS_SET_2
 } from './constants';
-import { Loader2, AlertTriangle, Wand2, Clock, StopCircle, Key, ArrowLeft, Sparkles, Shirt, UserRoundCog } from 'lucide-react';
+import { Loader2, AlertTriangle, Wand2, StopCircle, Key, ArrowLeft, Sparkles, Shirt, UserRoundCog } from 'lucide-react';
 
 type AppFunction = 'ai-clothing' | 'pose-generator' | 'facial-enhancement';
 
@@ -54,7 +52,6 @@ export default function App() {
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [results, setResults] = useState<TryOnResult[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [cooldown, setCooldown] = useState(0);
   const [shouldAbort, setShouldAbort] = useState(false);
   const shouldAbortRef = useRef(false);
 
@@ -67,7 +64,6 @@ export default function App() {
   const [poseStatus, setPoseStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [poseBatchProgress, setPoseBatchProgress] = useState({ current: 0, total: 0 });
   const [poseErrorMessage, setPoseErrorMessage] = useState<string | null>(null);
-  const [poseCooldown, setPoseCooldown] = useState(0);
   const [shouldAbortPose, setShouldAbortPose] = useState(false);
   const shouldAbortPoseRef = useRef(false);
 
@@ -79,45 +75,8 @@ export default function App() {
   const [facialStatus, setFacialStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [facialBatchProgress, setFacialBatchProgress] = useState({ current: 0, total: 0 });
   const [facialErrorMessage, setFacialErrorMessage] = useState<string | null>(null);
-  const [facialCooldown, setFacialCooldown] = useState(0);
   const [shouldAbortFacial, setShouldAbortFacial] = useState(false);
   const shouldAbortFacialRef = useRef(false);
-
-  useEffect(() => {
-    let interval: number;
-    if (cooldown > 0) {
-      interval = window.setInterval(() => {
-        setCooldown((prev) => prev - 1);
-      }, 1000);
-    } else if (cooldown === 0 && status === AppStatus.COOLDOWN) {
-      setStatus(AppStatus.IDLE);
-    }
-    return () => clearInterval(interval);
-  }, [cooldown, status]);
-
-  useEffect(() => {
-    let interval: number;
-    if (poseCooldown > 0) {
-      interval = window.setInterval(() => {
-        setPoseCooldown((prev) => prev - 1);
-      }, 1000);
-    } else if (poseCooldown === 0 && poseStatus === AppStatus.COOLDOWN) {
-      setPoseStatus(AppStatus.IDLE);
-    }
-    return () => clearInterval(interval);
-  }, [poseCooldown, poseStatus]);
-
-  useEffect(() => {
-    let interval: number;
-    if (facialCooldown > 0) {
-      interval = window.setInterval(() => {
-        setFacialCooldown((prev) => prev - 1);
-      }, 1000);
-    } else if (facialCooldown === 0 && facialStatus === AppStatus.COOLDOWN) {
-      setFacialStatus(AppStatus.IDLE);
-    }
-    return () => clearInterval(interval);
-  }, [facialCooldown, facialStatus]);
 
   const handleGenerate = async () => {
     if (!apiKey) {
@@ -277,8 +236,7 @@ export default function App() {
       }
     }
 
-    setStatus(AppStatus.COOLDOWN);
-    setCooldown((hasGlobalError || shouldAbortRef.current) ? COOLDOWN_ERROR_SECONDS : COOLDOWN_SUCCESS_SECONDS);
+    setStatus(AppStatus.IDLE);
   };
 
   const handleGeneratePose = async () => {
@@ -398,8 +356,7 @@ export default function App() {
       }
     }
 
-    setPoseStatus(AppStatus.COOLDOWN);
-    setPoseCooldown((hasGlobalError || shouldAbortPoseRef.current) ? COOLDOWN_ERROR_SECONDS : COOLDOWN_SUCCESS_SECONDS);
+    setPoseStatus(AppStatus.IDLE);
   };
 
   const handleFacialEnhancementSubmit = async () => {
@@ -506,16 +463,12 @@ export default function App() {
       }
     }
 
-    setFacialStatus(AppStatus.COOLDOWN);
-    setFacialCooldown((hasGlobalError || shouldAbortFacialRef.current) ? COOLDOWN_ERROR_SECONDS : COOLDOWN_SUCCESS_SECONDS);
+    setFacialStatus(AppStatus.IDLE);
   };
 
   const isProcessing = status === AppStatus.BATCH_PROCESSING;
-  const isCooldown = cooldown > 0;
   const isPoseProcessing = poseStatus === AppStatus.BATCH_PROCESSING;
-  const isPoseCooldown = poseCooldown > 0;
   const isFacialProcessing = facialStatus === AppStatus.BATCH_PROCESSING;
-  const isFacialCooldown = facialCooldown > 0;
 
   return (
     <div className="flex flex-col h-screen bg-slate-900 text-slate-100 font-sans overflow-hidden">
@@ -619,7 +572,7 @@ export default function App() {
                         multiple={true}
                         files={modelImages}
                         onFilesChange={setModelImages}
-                        disabled={isProcessing || isCooldown}
+                        disabled={isProcessing}
                       />
                     </div>
 
@@ -627,7 +580,7 @@ export default function App() {
                       <GarmentList
                         groups={garmentGroups}
                         onGroupsChange={setGarmentGroups}
-                        disabled={isProcessing || isCooldown}
+                        disabled={isProcessing}
                       />
                     </div>
 
@@ -635,25 +588,12 @@ export default function App() {
                       <PromptModeSelector
                         selectedModes={selectedStudioModes}
                         onSelectionChange={setSelectedStudioModes}
-                        disabled={isProcessing || isCooldown}
+                        disabled={isProcessing}
                       />
                     </div>
 
                     <div className="pt-2 sticky bottom-4 z-10">
-                      {isCooldown ? (
-                        <div className="bg-slate-800/90 backdrop-blur rounded-xl p-4 border border-slate-700 flex items-center justify-between shadow-xl">
-                          <div className="flex items-center gap-3">
-                            <Clock className="w-5 h-5 text-indigo-400 animate-pulse" />
-                            <div>
-                              <p className="font-medium text-slate-200">Cooling Down</p>
-                              <p className="text-xs text-slate-400">Quota protection...</p>
-                            </div>
-                          </div>
-                          <div className="text-2xl font-mono font-bold text-indigo-400">
-                            {Math.floor(cooldown / 60)}:{(cooldown % 60).toString().padStart(2, '0')}
-                          </div>
-                        </div>
-                      ) : isProcessing ? (
+                      {isProcessing ? (
                         <div className="space-y-3">
                           <button
                             disabled={true}
@@ -751,7 +691,7 @@ export default function App() {
                         multiple={true}
                         files={poseModelImages}
                         onFilesChange={setPoseModelImages}
-                        disabled={isPoseProcessing || isPoseCooldown}
+                        disabled={isPoseProcessing}
                       />
                     </div>
 
@@ -761,20 +701,7 @@ export default function App() {
                     </div>
 
                     <div className="pt-2 sticky bottom-4 z-10">
-                      {isPoseCooldown ? (
-                        <div className="bg-slate-800/90 backdrop-blur rounded-xl p-4 border border-slate-700 flex items-center justify-between shadow-xl">
-                          <div className="flex items-center gap-3">
-                            <Clock className="w-5 h-5 text-indigo-400 animate-pulse" />
-                            <div>
-                              <p className="font-medium text-slate-200">Cooling Down</p>
-                              <p className="text-xs text-slate-400">Quota protection...</p>
-                            </div>
-                          </div>
-                          <div className="text-2xl font-mono font-bold text-indigo-400">
-                            {Math.floor(poseCooldown / 60)}:{(poseCooldown % 60).toString().padStart(2, '0')}
-                          </div>
-                        </div>
-                      ) : isPoseProcessing ? (
+                      {isPoseProcessing ? (
                         <div className="space-y-3">
                           <button
                             disabled={true}
@@ -865,7 +792,7 @@ export default function App() {
                         multiple={true}
                         files={facialModelImages}
                         onFilesChange={setFacialModelImages}
-                        disabled={isFacialProcessing || isFacialCooldown}
+                        disabled={isFacialProcessing}
                       />
                     </div>
 
@@ -874,25 +801,12 @@ export default function App() {
                         label="Reference Face Image"
                         files={facialFaceImage}
                         onFilesChange={setFacialFaceImage}
-                        disabled={isFacialProcessing || isFacialCooldown}
+                        disabled={isFacialProcessing}
                       />
                     </div>
 
                     <div className="pt-2 sticky bottom-4 z-10">
-                      {isFacialCooldown ? (
-                        <div className="bg-slate-800/90 backdrop-blur rounded-xl p-4 border border-slate-700 flex items-center justify-between shadow-xl">
-                          <div className="flex items-center gap-3">
-                            <Clock className="w-5 h-5 text-indigo-400 animate-pulse" />
-                            <div>
-                              <p className="font-medium text-slate-200">Cooling Down</p>
-                              <p className="text-xs text-slate-400">Quota protection...</p>
-                            </div>
-                          </div>
-                          <div className="text-2xl font-mono font-bold text-indigo-400">
-                            {Math.floor(facialCooldown / 60)}:{(facialCooldown % 60).toString().padStart(2, '0')}
-                          </div>
-                        </div>
-                      ) : isFacialProcessing ? (
+                      {isFacialProcessing ? (
                         <div className="space-y-3">
                           <button
                             disabled={true}
