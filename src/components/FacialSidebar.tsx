@@ -98,7 +98,7 @@ const FacialSidebar: React.FC<FacialSidebarProps> = ({
             <label className="text-sm text-slate-300">Image Generation Model</label>
             <select
               value={settings.imageModel}
-              onChange={(e) => setSettings({ ...settings, imageModel: e.target.value as any })}
+              onChange={(e) => setSettings({ ...settings, imageModel: e.target.value as 'gemini-3-pro-image-preview' })}
               className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
               disabled={isProcessing}
             >

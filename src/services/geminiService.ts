@@ -5,6 +5,14 @@ import {
 } from "@google/genai";
 import { addLog } from './debugLogger';
 
+type ContentPart = {
+  text?: string;
+  inlineData?: {
+    mimeType: string;
+    data: string;
+  };
+};
+
 // Helper: Dosyayı Base64'e çevir
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -40,7 +48,7 @@ export const analyzeImages = async (
 
   const ai = new GoogleGenAI({ apiKey });
   
-  const parts: any[] = [];
+  const parts: ContentPart[] = [];
 
   parts.push({ text: promptInstructions });
 
@@ -111,7 +119,7 @@ export const generateTryOnImage = async (
 
   const ai = new GoogleGenAI({ apiKey });
   
-  const parts: any[] = [];
+  const parts: ContentPart[] = [];
 
   parts.push({ text: prompt });
 
@@ -169,7 +177,7 @@ export const generateFacialEnhancement = async (
   addLog('info', `[generateFacialEnhancement] Starting generation — model: "${modelImage.name}", faceRef: "${faceImage.name}", resolution: ${settings.resolution}, aspect: ${settings.aspectRatio}, imageModel: ${imageModel}`);
 
   const ai = new GoogleGenAI({ apiKey });
-  const parts: any[] = [];
+  const parts: ContentPart[] = [];
 
   parts.push({ text: prompt });
 
