@@ -5,8 +5,7 @@ export interface FileWithPreview {
 
 export enum AppStatus {
   IDLE = 'IDLE',
-  BATCH_PROCESSING = 'BATCH_PROCESSING', // Replaces ANALYZING/GENERATING for top-level state
-  COOLDOWN = 'COOLDOWN',
+  BATCH_PROCESSING = 'BATCH_PROCESSING',
 }
 
 export type ItemStatus = 'pending' | 'analyzing' | 'generating' | 'success' | 'error';

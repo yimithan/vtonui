@@ -159,8 +159,6 @@ Analyze all provided images and produce a single, detailed photorealistic prompt
 ## OUTPUT FORMAT
 Output ONLY the final descriptive prompt as plain text. No JSON, no markdown, no explanations, no commentary.`;
 
-export const COOLDOWN_SUCCESS_SECONDS = 120;
-export const COOLDOWN_ERROR_SECONDS = 10;
 export const MAX_CONCURRENT_TRYON = 3;
 
 export const DEFAULT_POSE_PROMPT_TEMPLATE = `Maintain the exact same person, facial features, biological identity, skin texture, eye gaze and hair as the provided reference image. Preserve the exact same background environment, depth of field, lighting setup, shadow falloff, and camera perspective. Completely redraw the subject to perfectly execute this specific pose: [INSERT TARGET POSE HERE]. Ensure flawless anatomical proportions, correct hand and finger placement, and natural physics for how the clothing drapes, stretches, or folds based strictly on this new skeletal arrangement. Do not introduce any morphing artifacts, ghosting from the original pose, anatomical impossibilities, extra limbs, extra fingers, or shifted lighting. Ensure a photorealistic render perfectly matching the original source photography.`;

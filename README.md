@@ -21,7 +21,6 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 - **Custom Prompt Text** — Optionally provide a custom prompt text to override the default analysis behavior.
 - **Model Selection** — Choose independently which Gemini model to use for prompt generation and for image generation.
 - **Generation Settings** — Configure output resolution (1K / 2K / 4K) and aspect ratio (1:1, 3:4, 4:3, 9:16, 16:9).
-- **Cooldown Timer** — Built-in quota protection with a configurable cooldown between batch runs.
 
 ## How It Works
 
@@ -54,7 +53,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
     ├── index.css              # Global styles
     ├── App.tsx                # Main application with function selection and per-function workflows
     ├── types.ts               # TypeScript interfaces and enums
-    ├── constants.ts           # Default prompt config and cooldown timers
+    ├── constants.ts           # Default prompt config
     ├── components/
     │   ├── Sidebar.tsx        # AI Clothing sidebar settings
     │   ├── PoseSidebar.tsx    # Pose Generator sidebar settings
@@ -113,10 +112,3 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 ### Custom Prompt Text
 
 Enter custom prompt text via the sidebar to replace the default analysis prompt. The default prompt instructs the AI to act as a high-end fashion photography prompt engineer, analyzing the model's physical characteristics and the garment's details to produce a photorealistic generation prompt with zero-bleed constraints.
-
-### Cooldown
-
-After a batch completes, a cooldown timer activates to protect API quota:
-
-- **Success:** 120 seconds
-- **Error:** 10 seconds
