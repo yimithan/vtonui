@@ -111,6 +111,45 @@ const FacialSidebar: React.FC<FacialSidebarProps> = ({
             <span>Facial enhancement is locked to Gemini Image Pro for best multimodal consistency.</span>
           </div>
         </div>
+
+        <div className="h-px bg-slate-700 my-4" />
+
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+            Generation Settings
+          </h2>
+
+          <div className="space-y-2">
+            <label className="text-sm text-slate-300">Resolution</label>
+            <select
+              value={settings.resolution}
+              onChange={(e) => setSettings({ ...settings, resolution: e.target.value as any })}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+              disabled={isProcessing}
+            >
+              <option value="1K">1K (Standard)</option>
+              <option value="2K">2K (High)</option>
+              <option value="4K">4K (Ultra)</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm text-slate-300">Aspect Ratio</label>
+            <select
+              value={settings.aspectRatio}
+              onChange={(e) => setSettings({ ...settings, aspectRatio: e.target.value as any })}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+              disabled={isProcessing}
+            >
+              <option value="1:1">1:1 (Square)</option>
+              <option value="3:4">3:4 (Portrait - Best for Body)</option>
+              <option value="4:3">4:3 (Landscape)</option>
+              <option value="9:16">9:16 (Story)</option>
+              <option value="16:9">16:9 (Cinema)</option>
+              <option value="2:3">2:3 (Portrait - Best for Headshots)</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   );
