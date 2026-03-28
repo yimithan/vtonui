@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Settings, AlertCircle, FileText, Cpu, ChevronDown, ChevronUp, Plus, Trash2, Edit2, Check, X, List } from 'lucide-react';
-import { GenerationSettings, ImageModel, PromptModel } from '../types';
+import { GenerationSettings, ImageModel } from '../types';
 import { DEFAULT_POSE_PROMPT_TEMPLATE } from '../constants';
 
 interface PoseSidebarProps {
@@ -297,20 +297,6 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
             <Cpu className="w-4 h-4" />
             Model Selection
           </h2>
-
-          <div className="space-y-2">
-            <label className="text-sm text-slate-300">Prompt Generation Model</label>
-            <select
-              value={settings.promptModel}
-              onChange={(e) => setSettings({ ...settings, promptModel: e.target.value as PromptModel })}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
-              disabled={isProcessing}
-            >
-              <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
-              <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
-              <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
-            </select>
-          </div>
 
           <div className="space-y-2">
             <label className="text-sm text-slate-300">Image Generation Model</label>
