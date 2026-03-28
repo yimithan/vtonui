@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Settings, AlertCircle, FileText, Cpu } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Settings, AlertCircle, FileText, Cpu, ChevronDown, ChevronUp, Plus, Trash2, Edit2, Check, X, List } from 'lucide-react';
 import { GenerationSettings, ImageModel, PromptModel } from '../types';
 import { DEFAULT_POSE_PROMPT_TEMPLATE } from '../constants';
 
@@ -9,6 +9,8 @@ interface PoseSidebarProps {
   isProcessing: boolean;
   promptTemplate: string;
   onPromptTemplateChange: (prompt: string) => void;
+  poseVariations: string[];
+  onPoseVariationsChange: (poses: string[]) => void;
 }
 
 const PoseSidebar: React.FC<PoseSidebarProps> = ({
@@ -16,12 +18,99 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
   setSettings,
   isProcessing,
   promptTemplate,
-  onPromptTemplateChange
+  onPromptTemplateChange,
+  poseVariations,
+  onPoseVariationsChange,
 }) => {
   const [promptMode] = useState('pose-preservation');
+  const [poseListExpanded, setPoseListExpanded] = useState(false);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
+
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    startX.current = e.clientX;
+    startWidth.current = sidebarWidth;
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = e.clientX - startX.current;
+      const newWidth = Math.max(280, Math.min(640, startWidth.current + delta));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      isDragging.current = false;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  const handleEditPose = (idx: number) => {
+    setEditingIdx(idx);
+    setEditingText(poseVariations[idx]);
+  };
+
+  const handleSavePose = (idx: number) => {
+    if (!editingText.trim()) return;
+    const updated = [...poseVariations];
+    updated[idx] = editingText.trim();
+    onPoseVariationsChange(updated);
+    setEditingIdx(null);
+  };
+
+  const handleCancelEdit = () => {
+    // If cancelling on a brand-new empty pose, remove it
+    if (editingIdx !== null && poseVariations[editingIdx] === '') {
+      handleDeletePose(editingIdx);
+    }
+    setEditingIdx(null);
+  };
+
+  const handleDeletePose = (idx: number) => {
+    const updated = poseVariations.filter((_, i) => i !== idx);
+    onPoseVariationsChange(updated);
+    if (editingIdx === idx) {
+      setEditingIdx(null);
+    } else if (editingIdx !== null && editingIdx > idx) {
+      setEditingIdx(editingIdx - 1);
+    }
+  };
+
+  const handleAddPose = () => {
+    const updated = [...poseVariations, ''];
+    onPoseVariationsChange(updated);
+    setEditingIdx(updated.length - 1);
+    setEditingText('');
+    setPoseListExpanded(true);
+  };
 
   return (
-    <div className="w-80 bg-slate-800 border-r border-slate-700 p-6 flex flex-col h-full overflow-y-auto">
+    <div
+      className="relative bg-slate-800 border-r border-slate-700 p-6 flex flex-col h-full overflow-y-auto shrink-0"
+      style={{ width: sidebarWidth }}
+    >
+      {/* Resize handle */}
+      <div
+        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-indigo-500/50 active:bg-indigo-500 transition-colors z-10"
+        onMouseDown={handleResizeMouseDown}
+      />
+
       <div className="flex items-center gap-3 mb-8">
         <div className="p-2 bg-indigo-500 rounded-lg">
           <Settings className="w-6 h-6 text-white" />
@@ -55,6 +144,95 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
           <p className="text-xs text-slate-500">
             The selected pose text is injected into [INSERT TARGET POSE HERE].
           </p>
+        </div>
+
+        <div className="h-px bg-slate-700 my-4" />
+
+        {/* Pose Variations Section */}
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setPoseListExpanded(!poseListExpanded)}
+            className="w-full flex items-center justify-between text-sm font-medium text-slate-300 hover:text-white transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <List className="w-4 h-4" />
+              Pose Variations ({poseVariations.length})
+            </span>
+            {poseListExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {poseListExpanded && (
+            <div className="space-y-1">
+              <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+                {poseVariations.map((pose, idx) => (
+                  <div key={idx} className="flex items-start gap-1.5 text-xs bg-slate-900/50 rounded p-2">
+                    <span className="text-slate-500 shrink-0 w-6 text-right mt-0.5">{idx + 1}.</span>
+                    {editingIdx === idx ? (
+                      <div className="flex-1 space-y-1">
+                        <textarea
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          rows={2}
+                          className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 resize-y outline-none focus:ring-1 focus:ring-indigo-500"
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSavePose(idx)}
+                            className="text-green-400 hover:text-green-300 transition-colors"
+                            title="Save"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEdit}
+                            className="text-slate-400 hover:text-slate-300 transition-colors"
+                            title="Cancel"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="flex-1 text-slate-300 line-clamp-2 leading-relaxed">{pose}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleEditPose(idx)}
+                          disabled={isProcessing}
+                          className="text-slate-500 hover:text-indigo-400 shrink-0 transition-colors mt-0.5 disabled:opacity-40"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePose(idx)}
+                          disabled={isProcessing}
+                          className="text-slate-500 hover:text-red-400 shrink-0 transition-colors mt-0.5 disabled:opacity-40"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={handleAddPose}
+                disabled={isProcessing}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 py-1.5 border border-dashed border-slate-600 hover:border-indigo-500 rounded transition-colors disabled:opacity-40"
+              >
+                <Plus className="w-3 h-3" />
+                Add Pose
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="h-px bg-slate-700 my-4" />
@@ -141,3 +319,4 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
 };
 
 export default PoseSidebar;
+

@@ -59,6 +59,7 @@ export default function App() {
   const [poseModelImages, setPoseModelImages] = useState<FileWithPreview[]>([]);
   const [poseResults, setPoseResults] = useState<TryOnResult[]>([]);
   const [posePromptTemplate, setPosePromptTemplate] = useState(DEFAULT_POSE_PROMPT_TEMPLATE);
+  const [poseVariations, setPoseVariations] = useState<string[]>(POSE_VARIATIONS);
   const [poseStatus, setPoseStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [poseBatchProgress, setPoseBatchProgress] = useState({ current: 0, total: 0 });
   const [poseErrorMessage, setPoseErrorMessage] = useState<string | null>(null);
@@ -269,8 +270,8 @@ export default function App() {
 
     const combinations: { modelIdx: number; poseIdx: number; pose: string }[] = [];
     for (let modelIdx = 0; modelIdx < poseModelImages.length; modelIdx++) {
-      for (let poseIdx = 0; poseIdx < POSE_VARIATIONS.length; poseIdx++) {
-        combinations.push({ modelIdx, poseIdx, pose: POSE_VARIATIONS[poseIdx] });
+      for (let poseIdx = 0; poseIdx < poseVariations.length; poseIdx++) {
+        combinations.push({ modelIdx, poseIdx, pose: poseVariations[poseIdx] });
       }
     }
 
@@ -569,6 +570,8 @@ export default function App() {
               isProcessing={isPoseProcessing}
               promptTemplate={posePromptTemplate}
               onPromptTemplateChange={setPosePromptTemplate}
+              poseVariations={poseVariations}
+              onPoseVariationsChange={setPoseVariations}
             />
 
             <main className="flex-1 p-8 overflow-y-auto">
@@ -576,7 +579,7 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-3xl font-bold text-white mb-2">Pose Generator</h2>
-                    <p className="text-slate-400">Generate {POSE_VARIATIONS.length} pose variations for each uploaded model image.</p>
+                    <p className="text-slate-400">Generate {poseVariations.length} pose variations for each uploaded model image.</p>
                   </div>
                   <button
                     onClick={() => setActiveFunction(null)}
@@ -608,7 +611,7 @@ export default function App() {
 
                     <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 backdrop-blur-sm text-sm text-slate-300">
                       <p className="font-semibold text-slate-200">Pose Loop</p>
-                      <p className="text-slate-400 mt-2">Configured to iterate through {POSE_VARIATIONS.length} predefined poses for each model image.</p>
+                      <p className="text-slate-400 mt-2">Configured to iterate through {poseVariations.length} predefined poses for each model image.</p>
                     </div>
 
                     <div className="pt-2 sticky bottom-4 z-10">
