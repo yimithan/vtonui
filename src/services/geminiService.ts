@@ -155,3 +155,59 @@ export const generateTryOnImage = async (
 
   throw new Error("No image generated in the response");
 };
+
+export const generateFacialEnhancement = async (
+  apiKey: string,
+  modelImage: File,
+  faceImage: File,
+  prompt: string,
+  settings: { resolution: string; aspectRatio: string },
+  imageModel: string = 'gemini-3-pro-image-preview'
+): Promise<string> => {
+  if (!apiKey) throw new Error("API Key is required");
+
+  addLog('info', `[generateFacialEnhancement] Starting generation — model: "${modelImage.name}", faceRef: "${faceImage.name}", resolution: ${settings.resolution}, aspect: ${settings.aspectRatio}, imageModel: ${imageModel}`);
+
+  const ai = new GoogleGenAI({ apiKey });
+  const parts: any[] = [];
+
+  parts.push({ text: prompt });
+
+  const modelBase64 = await fileToBase64(modelImage);
+  parts.push({
+    inlineData: {
+      mimeType: modelImage.type,
+      data: modelBase64
+    }
+  });
+
+  const faceBase64 = await fileToBase64(faceImage);
+  parts.push({
+    inlineData: {
+      mimeType: faceImage.type,
+      data: faceBase64
+    }
+  });
+
+  const response = await ai.models.generateContent({
+    model: imageModel,
+    contents: { parts },
+    config: {
+      imageConfig: {
+        imageSize: settings.resolution,
+        aspectRatio: settings.aspectRatio
+      },
+      safetySettings: SAFETY_SETTINGS,
+    }
+  });
+
+  addLog('info', `[generateFacialEnhancement] API response received. Parts: ${response.candidates?.[0]?.content?.parts?.length ?? 0}`);
+
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
+    }
+  }
+
+  throw new Error("No image generated in the response");
+};
