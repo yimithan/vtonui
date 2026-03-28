@@ -20,7 +20,8 @@ import {
   PROMPT_FLAT_LAY,
   DEFAULT_POSE_PROMPT_TEMPLATE,
   DEFAULT_FACIAL_ENHANCEMENT_PROMPT,
-  POSE_VARIATIONS
+  POSE_VARIATIONS_SET_1,
+  POSE_VARIATIONS_SET_2
 } from './constants';
 import { Loader2, AlertTriangle, Wand2, Clock, StopCircle, Key, ArrowLeft, Sparkles, Shirt, UserRoundCog } from 'lucide-react';
 
@@ -61,7 +62,8 @@ export default function App() {
   const [poseModelImages, setPoseModelImages] = useState<FileWithPreview[]>([]);
   const [poseResults, setPoseResults] = useState<TryOnResult[]>([]);
   const [posePromptTemplate, setPosePromptTemplate] = useState(DEFAULT_POSE_PROMPT_TEMPLATE);
-  const [poseVariations, setPoseVariations] = useState<string[]>(POSE_VARIATIONS);
+  const [poseVariations, setPoseVariations] = useState<string[]>(POSE_VARIATIONS_SET_1);
+  const [poseVariationSet, setPoseVariationSet] = useState<1 | 2>(1);
   const [poseStatus, setPoseStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [poseBatchProgress, setPoseBatchProgress] = useState({ current: 0, total: 0 });
   const [poseErrorMessage, setPoseErrorMessage] = useState<string | null>(null);
@@ -711,6 +713,11 @@ export default function App() {
               onPromptTemplateChange={setPosePromptTemplate}
               poseVariations={poseVariations}
               onPoseVariationsChange={setPoseVariations}
+              poseVariationSet={poseVariationSet}
+              onPoseVariationSetChange={(set) => {
+                setPoseVariationSet(set);
+                setPoseVariations(set === 1 ? POSE_VARIATIONS_SET_1 : POSE_VARIATIONS_SET_2);
+              }}
             />
 
             <main className="flex-1 p-8 overflow-y-auto">

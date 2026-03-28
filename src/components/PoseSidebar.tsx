@@ -11,6 +11,8 @@ interface PoseSidebarProps {
   onPromptTemplateChange: (prompt: string) => void;
   poseVariations: string[];
   onPoseVariationsChange: (poses: string[]) => void;
+  poseVariationSet: 1 | 2;
+  onPoseVariationSetChange: (set: 1 | 2) => void;
 }
 
 const PoseSidebar: React.FC<PoseSidebarProps> = ({
@@ -21,6 +23,8 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
   onPromptTemplateChange,
   poseVariations,
   onPoseVariationsChange,
+  poseVariationSet,
+  onPoseVariationSetChange,
 }) => {
   const [promptMode] = useState('pose-preservation');
   const [poseListExpanded, setPoseListExpanded] = useState(false);
@@ -144,6 +148,57 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
           <p className="text-xs text-slate-500">
             The selected pose text is injected into [INSERT TARGET POSE HERE].
           </p>
+        </div>
+
+        <div className="h-px bg-slate-700 my-4" />
+
+        {/* Pose Variation Set Selector */}
+        <div className="space-y-2">
+          <span className="text-sm font-medium text-slate-300 flex items-center gap-2">
+            <List className="w-4 h-4" />
+            Pose Variation Set
+          </span>
+          <div className="flex gap-2">
+            {/* Option 1: face without eyes */}
+            <button
+              type="button"
+              onClick={() => !isProcessing && onPoseVariationSetChange(1)}
+              disabled={isProcessing}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg border transition-colors disabled:opacity-40 ${
+                poseVariationSet === 1
+                  ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
+                  : 'border-slate-600 bg-slate-900/50 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+              }`}
+              title="Set 1 – Original poses"
+            >
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="16" cy="16" r="13" stroke="currentColor" strokeWidth="2" fill="none"/>
+                <path d="M11 21 Q16 25 21 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+              </svg>
+              <span className="text-xs font-medium">Set 1</span>
+            </button>
+
+            {/* Option 2: face with eyes */}
+            <button
+              type="button"
+              onClick={() => !isProcessing && onPoseVariationSetChange(2)}
+              disabled={isProcessing}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg border transition-colors disabled:opacity-40 ${
+                poseVariationSet === 2
+                  ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
+                  : 'border-slate-600 bg-slate-900/50 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+              }`}
+              title="Set 2 – Expressive poses"
+            >
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="16" cy="16" r="13" stroke="currentColor" strokeWidth="2" fill="none"/>
+                <circle cx="12" cy="14" r="2" fill="currentColor"/>
+                <circle cx="20" cy="14" r="2" fill="currentColor"/>
+                <path d="M11 21 Q16 25 21 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+              </svg>
+              <span className="text-xs font-medium">Set 2</span>
+            </button>
+          </div>
         </div>
 
         <div className="h-px bg-slate-700 my-4" />
