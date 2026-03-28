@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import PoseSidebar from './components/PoseSidebar';
+import FacialSidebar from './components/FacialSidebar';
 import UploadZone from './components/UploadZone';
 import GarmentList from './components/GarmentList';
 import ResultsGallery from './components/ResultsGallery';
 import DebugConsole from './components/DebugConsole';
 import PromptModeSelector from './components/PromptModeSelector';
 import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptMode } from './types';
-import { analyzeImages, generateTryOnImage } from './services/geminiService';
+import { analyzeImages, generateTryOnImage, generateFacialEnhancement } from './services/geminiService';
 import { addLog } from './services/debugLogger';
 import {
   COOLDOWN_SUCCESS_SECONDS,
@@ -18,6 +19,7 @@ import {
   PROMPT_BAG_NO_MODEL,
   PROMPT_FLAT_LAY,
   DEFAULT_POSE_PROMPT_TEMPLATE,
+  DEFAULT_FACIAL_ENHANCEMENT_PROMPT,
   POSE_VARIATIONS
 } from './constants';
 import { Loader2, AlertTriangle, Wand2, Clock, StopCircle, Key, ArrowLeft, Sparkles, Shirt, UserRoundCog } from 'lucide-react';
@@ -67,6 +69,18 @@ export default function App() {
   const [shouldAbortPose, setShouldAbortPose] = useState(false);
   const shouldAbortPoseRef = useRef(false);
 
+  // Facial Enhancement State
+  const [facialModelImages, setFacialModelImages] = useState<FileWithPreview[]>([]);
+  const [facialFaceImage, setFacialFaceImage] = useState<FileWithPreview[]>([]);
+  const [facialPrompt, setFacialPrompt] = useState(DEFAULT_FACIAL_ENHANCEMENT_PROMPT);
+  const [facialResults, setFacialResults] = useState<TryOnResult[]>([]);
+  const [facialStatus, setFacialStatus] = useState<AppStatus>(AppStatus.IDLE);
+  const [facialBatchProgress, setFacialBatchProgress] = useState({ current: 0, total: 0 });
+  const [facialErrorMessage, setFacialErrorMessage] = useState<string | null>(null);
+  const [facialCooldown, setFacialCooldown] = useState(0);
+  const [shouldAbortFacial, setShouldAbortFacial] = useState(false);
+  const shouldAbortFacialRef = useRef(false);
+
   useEffect(() => {
     let interval: number;
     if (cooldown > 0) {
@@ -90,6 +104,18 @@ export default function App() {
     }
     return () => clearInterval(interval);
   }, [poseCooldown, poseStatus]);
+
+  useEffect(() => {
+    let interval: number;
+    if (facialCooldown > 0) {
+      interval = window.setInterval(() => {
+        setFacialCooldown((prev) => prev - 1);
+      }, 1000);
+    } else if (facialCooldown === 0 && facialStatus === AppStatus.COOLDOWN) {
+      setFacialStatus(AppStatus.IDLE);
+    }
+    return () => clearInterval(interval);
+  }, [facialCooldown, facialStatus]);
 
   const handleGenerate = async () => {
     if (!apiKey) {
@@ -374,10 +400,120 @@ export default function App() {
     setPoseCooldown((hasGlobalError || shouldAbortPoseRef.current) ? COOLDOWN_ERROR_SECONDS : COOLDOWN_SUCCESS_SECONDS);
   };
 
+  const handleFacialEnhancementSubmit = async () => {
+    if (!apiKey) {
+      setFacialErrorMessage("Please enter your Google Gemini API Key in the top bar.");
+      return;
+    }
+    if (facialModelImages.length === 0) {
+      setFacialErrorMessage("Please upload at least one target model image.");
+      return;
+    }
+    if (facialFaceImage.length !== 1) {
+      setFacialErrorMessage("Please upload exactly one reference face image.");
+      return;
+    }
+
+    setFacialErrorMessage(null);
+    setShouldAbortFacial(false);
+    shouldAbortFacialRef.current = false;
+    setFacialStatus(AppStatus.BATCH_PROCESSING);
+
+    const totalCombinations = facialModelImages.length;
+    setFacialBatchProgress({ current: 0, total: totalCombinations });
+
+    const initialResults: TryOnResult[] = facialModelImages.map((item, idx) => ({
+      modelId: `facial-model-${idx}`,
+      modelPreview: item.preview,
+      modelFileName: item.file.name,
+      garmentId: 'reference-face',
+      garmentPreview: facialFaceImage[0].preview,
+      promptMode: 'default',
+      status: 'pending',
+    }));
+    setFacialResults(initialResults);
+
+    let hasGlobalError = false;
+    let completedCount = 0;
+
+    const processModel = async (modelIdx: number) => {
+      const modelImage = facialModelImages[modelIdx];
+      const modelId = `facial-model-${modelIdx}`;
+
+      if (shouldAbortFacialRef.current) {
+        setFacialResults(prev => prev.map(r =>
+          r.modelId === modelId ? { ...r, status: 'error', error: 'Aborted by user' } : r
+        ));
+        return;
+      }
+
+      setFacialResults(prev => prev.map(r =>
+        r.modelId === modelId ? { ...r, status: 'generating' } : r
+      ));
+
+      try {
+        const resultImage = await generateFacialEnhancement(
+          apiKey,
+          modelImage.file,
+          facialFaceImage[0].file,
+          facialPrompt,
+          settings,
+          'gemini-3-pro-image-preview'
+        );
+
+        setFacialResults(prev => prev.map(r =>
+          r.modelId === modelId ? { ...r, status: 'success', generatedImage: resultImage } : r
+        ));
+      } catch (error: any) {
+        addLog('error', `[Facial Enhancement] Failed — model "${modelImage.file.name}": ${error.message || 'Unknown error'}`);
+        setFacialResults(prev => prev.map(r =>
+          r.modelId === modelId ? { ...r, status: 'error', error: error.message || "Unknown error" } : r
+        ));
+
+        if (error.message.includes("API Key") || error.message.includes("403")) {
+          hasGlobalError = true;
+          shouldAbortFacialRef.current = true;
+          setFacialErrorMessage("API Authorization failed. Stopping batch.");
+        }
+      } finally {
+        completedCount++;
+        setFacialBatchProgress({ current: completedCount, total: totalCombinations });
+      }
+    };
+
+    let queueIndex = 0;
+    const worker = async () => {
+      while (!shouldAbortFacialRef.current) {
+        const idx = queueIndex++;
+        if (idx >= facialModelImages.length) break;
+        await processModel(idx);
+      }
+    };
+
+    const workerCount = Math.min(MAX_CONCURRENT_TRYON, facialModelImages.length);
+    await Promise.all(Array.from({ length: workerCount }, worker));
+
+    if (shouldAbortFacialRef.current) {
+      setFacialResults(prev => prev.map(r =>
+        r.status === 'pending' || r.status === 'analyzing' || r.status === 'generating'
+          ? { ...r, status: 'error', error: 'Aborted by user' }
+          : r
+      ));
+      if (!hasGlobalError) {
+        setFacialErrorMessage("Batch processing aborted by user.");
+      }
+    }
+
+    setFacialStatus(AppStatus.COOLDOWN);
+    setFacialCooldown((hasGlobalError || shouldAbortFacialRef.current) ? COOLDOWN_ERROR_SECONDS : COOLDOWN_SUCCESS_SECONDS);
+  };
+
   const isProcessing = status === AppStatus.BATCH_PROCESSING;
   const isCooldown = cooldown > 0;
   const isPoseProcessing = poseStatus === AppStatus.BATCH_PROCESSING;
   const isPoseCooldown = poseCooldown > 0;
+  const isFacialProcessing = facialStatus === AppStatus.BATCH_PROCESSING;
+  const isFacialCooldown = facialCooldown > 0;
 
   return (
     <div className="flex flex-col h-screen bg-slate-900 text-slate-100 font-sans overflow-hidden">
@@ -393,7 +529,7 @@ export default function App() {
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="Enter your API Key"
             className="w-full md:max-w-md bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500"
-            disabled={isProcessing || isPoseProcessing}
+            disabled={isProcessing || isPoseProcessing || isFacialProcessing}
           />
           <p className="text-xs text-slate-500">Your key is processed locally and never stored.</p>
         </div>
@@ -428,12 +564,15 @@ export default function App() {
                 </button>
 
                 <button
-                  onClick={() => setActiveFunction('facial-enhancement')}
+                  onClick={() => {
+                    setSettings(prev => ({ ...prev, imageModel: 'gemini-3-pro-image-preview' }));
+                    setActiveFunction('facial-enhancement');
+                  }}
                   className="text-left bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 hover:border-indigo-500/60 transition-colors"
                 >
                   <UserRoundCog className="w-8 h-8 text-indigo-400 mb-4" />
                   <h2 className="text-xl font-bold text-white">Facial Enhancement</h2>
-                  <p className="text-sm text-slate-400 mt-2">Coming soon.</p>
+                  <p className="text-sm text-slate-400 mt-2">Enhance facial identity using a reference face image.</p>
                 </button>
               </div>
             </div>
@@ -679,23 +818,123 @@ export default function App() {
             </main>
           </div>
         ) : (
-          <main className="h-full overflow-y-auto p-8">
-            <div className="max-w-5xl mx-auto space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-3xl font-bold text-white mb-2">Facial Enhancement</h2>
-                  <p className="text-slate-400">This function is intentionally left blank for now.</p>
+          <div className="flex h-full overflow-hidden">
+            <FacialSidebar
+              settings={settings}
+              setSettings={setSettings}
+              isProcessing={isFacialProcessing}
+              prompt={facialPrompt}
+              onPromptChange={setFacialPrompt}
+            />
+
+            <main className="flex-1 p-8 overflow-y-auto">
+              <div className="max-w-5xl mx-auto space-y-8 pb-12">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-3xl font-bold text-white mb-2">Facial Enhancement</h2>
+                    <p className="text-slate-400">Apply one reference face image across multiple target model images.</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveFunction(null)}
+                    className="px-4 py-2 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 flex items-center gap-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back
+                  </button>
                 </div>
-                <button
-                  onClick={() => setActiveFunction(null)}
-                  className="px-4 py-2 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 flex items-center gap-2"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Back
-                </button>
+
+                {facialErrorMessage && (
+                  <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 flex items-center gap-3 text-red-400 animate-in slide-in-from-top-2">
+                    <AlertTriangle className="w-5 h-5 shrink-0" />
+                    <p>{facialErrorMessage}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                  <div className="lg:col-span-4 space-y-6">
+                    <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 backdrop-blur-sm">
+                      <UploadZone
+                        label="Target Model Images"
+                        multiple={true}
+                        files={facialModelImages}
+                        onFilesChange={setFacialModelImages}
+                        disabled={isFacialProcessing || isFacialCooldown}
+                      />
+                    </div>
+
+                    <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 backdrop-blur-sm">
+                      <UploadZone
+                        label="Reference Face Image"
+                        files={facialFaceImage}
+                        onFilesChange={setFacialFaceImage}
+                        disabled={isFacialProcessing || isFacialCooldown}
+                      />
+                    </div>
+
+                    <div className="pt-2 sticky bottom-4 z-10">
+                      {isFacialCooldown ? (
+                        <div className="bg-slate-800/90 backdrop-blur rounded-xl p-4 border border-slate-700 flex items-center justify-between shadow-xl">
+                          <div className="flex items-center gap-3">
+                            <Clock className="w-5 h-5 text-indigo-400 animate-pulse" />
+                            <div>
+                              <p className="font-medium text-slate-200">Cooling Down</p>
+                              <p className="text-xs text-slate-400">Quota protection...</p>
+                            </div>
+                          </div>
+                          <div className="text-2xl font-mono font-bold text-indigo-400">
+                            {Math.floor(facialCooldown / 60)}:{(facialCooldown % 60).toString().padStart(2, '0')}
+                          </div>
+                        </div>
+                      ) : isFacialProcessing ? (
+                        <div className="space-y-3">
+                          <button
+                            disabled={true}
+                            className="w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-xl bg-indigo-500/50 cursor-not-allowed text-indigo-200"
+                          >
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                            Processing {facialBatchProgress.current}/{facialBatchProgress.total}
+                          </button>
+                          <button
+                            onClick={() => { setShouldAbortFacial(true); shouldAbortFacialRef.current = true; }}
+                            disabled={shouldAbortFacial}
+                            className={`w-full py-3 rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all shadow-xl ${
+                              shouldAbortFacial
+                                ? 'bg-slate-700 cursor-not-allowed text-slate-500'
+                                : 'bg-red-600 hover:bg-red-500 hover:scale-[1.02] active:scale-[0.98]'
+                            }`}
+                          >
+                            <StopCircle className="w-5 h-5" />
+                            {shouldAbortFacial ? 'Aborting...' : 'Abort All Processes'}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleFacialEnhancementSubmit}
+                          disabled={!apiKey}
+                          className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-xl ${
+                            !apiKey
+                              ? 'bg-slate-700 cursor-not-allowed text-slate-500'
+                              : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.02] active:scale-[0.98]'
+                          }`}
+                        >
+                          <Wand2 className="w-6 h-6" />
+                          Start Enhancement
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-8 space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-bold text-white">Results Gallery</h3>
+                      {facialResults.length > 0 && <span className="text-sm text-slate-400">{facialResults.filter(r => r.status === 'success').length} Completed</span>}
+                    </div>
+                    <ResultsGallery results={facialResults} />
+                  </div>
+                </div>
               </div>
-            </div>
-          </main>
+            </main>
+          </div>
         )}
       </div>
       <DebugConsole />
