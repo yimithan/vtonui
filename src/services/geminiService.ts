@@ -13,7 +13,7 @@ type ContentPart = {
   };
 };
 
-// Helper: Dosyayı Base64'e çevir
+// Helper: Convert file to Base64
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -27,7 +27,7 @@ export const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-// Python'daki gibi tüm filtreleri kapatıyoruz
+// Disable all safety filters like in Python
 const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
