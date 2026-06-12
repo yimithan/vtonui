@@ -2,7 +2,7 @@
 set -e
 
 echo "============================================"
-echo "  Gemini Virtual Try-On - Launcher"
+echo "  FAL Virtual Try-On - Launcher"
 echo "============================================"
 echo
 

@@ -2,9 +2,9 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Gemini Virtual Try-On
+# FAL Virtual Try-On
 
-A multi-function image generation web app powered by [Google Gemini](https://ai.google.dev/) models, with:
+A multi-function image generation web app powered by [FAL](https://fal.ai/) models, with:
 - **AI Clothing** (the original virtual try-on flow),
 - **Pose Generator** (100-pose variation generation for each model image),
 - **Facial Enhancement** (placeholder page for now).
@@ -19,13 +19,13 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 - **Batch Processing** — Queue multiple models and garments; each model will be dressed with every garment in a nested batch loop (Model1 × [Garment1, Garment2, ...], Model2 × [Garment1, Garment2, ...], etc.).
 - **Results Gallery** — View real-time status for each model-garment combination (pending → analyzing → generating → success/error) and download finished results.
 - **Custom Prompt Text** — Optionally provide a custom prompt text to override the default analysis behavior.
-- **Model Selection** — Choose independently which Gemini model to use for prompt generation and for image generation.
+- **Model Selection** — Choose independently which FAL model to use for prompt generation and for image generation.
 - **Generation Settings** — Configure output resolution (1K / 2K / 4K) and aspect ratio (1:1, 3:4, 4:3, 9:16, 16:9).
 
 ## How It Works
 
-1. **Analyze** — For each model-garment combination, the model image and garment images are sent to the selected **Prompt Generation Model** (default: `gemini-3-pro-preview`) along with prompt instructions. The model returns a detailed text prompt describing how the model should look wearing the garment.
-2. **Generate** — The text prompt, model image, and garment images are sent to the selected **Image Generation Model** (default: `gemini-3-pro-image-preview`) with image generation config (resolution & aspect ratio). The model returns a generated image of the virtual try-on result.
+1. **Analyze** — For each model-garment combination, the model image and garment images are sent to the selected **Prompt Generation Model** (default: `fal-ai/gpt-4.1-mini`) along with prompt instructions. The model returns a detailed text prompt describing how the model should look wearing the garment.
+2. **Generate** — The text prompt, model image, and garment images are sent to the selected **Image Generation Model** (default: `fal-ai/nano-banana-2`) with image generation config (resolution & aspect ratio). The model returns a generated image of the virtual try-on result.
 3. **Batch Loop** — The process repeats for all model-garment combinations: Model1 with all garments, then Model2 with all garments, etc.
 
 ## Tech Stack
@@ -36,7 +36,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 | Build Tool | [Vite](https://vite.dev/) 6 |
 | Styling | [Tailwind CSS](https://tailwindcss.com/) (CDN) |
 | Icons | [Lucide React](https://lucide.dev/) |
-| AI Backend | [Google GenAI SDK](https://www.npmjs.com/package/@google/genai) (`@google/genai`) |
+| AI Backend | [FAL JavaScript Client](https://www.npmjs.com/package/@fal-ai/client) (`@fal-ai/client`) |
 
 ## Project Structure
 
@@ -47,7 +47,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 ├── vite.config.ts             # Vite config (port 3000, API key injection)
 ├── tsconfig.json              # TypeScript configuration
 ├── metadata.json              # AI Studio app metadata
-├── .env.local                 # Local environment variables (GEMINI_API_KEY)
+├── .env.local                 # Local environment variables (FAL_API_KEY)
 └── src/
     ├── index.tsx              # React DOM entry point
     ├── index.css              # Global styles
@@ -61,7 +61,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
     │   ├── GarmentList.tsx    # Garment queue manager (add/remove garment groups)
     │   └── ResultsGallery.tsx # Results display with status badges and download links
     └── services/
-        └── geminiService.ts   # Google Gemini API integration (analyze + generate)
+        └── falService.ts      # FAL API integration (analyze + generate)
 ```
 
 ## Run Locally
@@ -70,9 +70,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 
 ### Option 1: Quick Start (Launcher Scripts)
 
-1. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your [Gemini API key](https://aistudio.google.com/apikey):
+1. Set the `FAL_API_KEY` in [.env.local](.env.local) to your [FAL API key](https://fal.ai/dashboard/keys):
    ```
-   GEMINI_API_KEY=your_key_here
+   FAL_API_KEY=your_key_here
    ```
 2. Launch the app:
    - **Windows:** Double-click `start.bat`
@@ -88,9 +88,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
    ```bash
    npm install
    ```
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your [Gemini API key](https://aistudio.google.com/apikey):
+2. Set the `FAL_API_KEY` in [.env.local](.env.local) to your [FAL API key](https://fal.ai/dashboard/keys):
    ```
-   GEMINI_API_KEY=your_key_here
+   FAL_API_KEY=your_key_here
    ```
 3. Start the dev server:
    ```bash
@@ -104,8 +104,8 @@ View your app in AI Studio: https://ai.studio/apps/drive/1BecNLvqmpvdfN8zuPDTS-p
 
 | Setting | Options | Default |
 |---------|---------|---------|
-| Prompt Generation Model | gemini-3-pro-preview, gemini-3.1-pro-preview, gemini-3.1-flash-lite-preview | gemini-3-pro-preview |
-| Image Generation Model | gemini-3-pro-image-preview, gemini-3.1-flash-image-preview | gemini-3-pro-image-preview |
+| Prompt Generation Model | fal-ai/gpt-4.1-mini, fal-ai/gemini-2.5-pro, fal-ai/llava-next | fal-ai/gpt-4.1-mini |
+| Image Generation Model | fal-ai/nano-banana-2, fal-ai/flux-pro/v1.1-ultra | fal-ai/nano-banana-2 |
 | Resolution | 1K (Standard), 2K (High), 4K (Ultra) | 1K |
 | Aspect Ratio | 1:1, 3:4, 4:3, 9:16, 16:9 | 3:4 |
 

@@ -98,17 +98,17 @@ const FacialSidebar: React.FC<FacialSidebarProps> = ({
             <label className="text-sm text-slate-300">Image Generation Model</label>
             <select
               value={settings.imageModel}
-              onChange={(e) => setSettings({ ...settings, imageModel: e.target.value as 'gemini-3-pro-image-preview' })}
+              onChange={(e) => setSettings({ ...settings, imageModel: e.target.value as 'fal-ai/nano-banana-2' })}
               className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
               disabled={isProcessing}
             >
-              <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
+              <option value="fal-ai/nano-banana-2">fal-ai/nano-banana-2</option>
             </select>
           </div>
 
           <div className="flex items-start gap-2 text-xs text-amber-500/80 bg-amber-500/10 p-2 rounded">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            <span>Facial enhancement is locked to Gemini Image Pro for best multimodal consistency.</span>
+            <span>Facial enhancement is locked to Nano Banana 2 for best multimodal consistency.</span>
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 @echo off
-title Gemini Virtual Try-On
+title FAL Virtual Try-On
 echo ============================================
-echo   Gemini Virtual Try-On - Launcher
+echo   FAL Virtual Try-On - Launcher
 echo ============================================
 echo.
 

@@ -8,7 +8,7 @@ import ResultsGallery from './components/ResultsGallery';
 import DebugConsole from './components/DebugConsole';
 import PromptModeSelector from './components/PromptModeSelector';
 import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptMode } from './types';
-import { analyzeImages, generateTryOnImage, generateFacialEnhancement } from './services/geminiService';
+import { analyzeImages, generateTryOnImage, generateFacialEnhancement } from './services/falService';
 import { addLog } from './services/debugLogger';
 import {
   DEFAULT_PROMPT_MAKER,
@@ -31,8 +31,8 @@ export default function App() {
   const [settings, setSettings] = useState<GenerationSettings>({
     resolution: '1K',
     aspectRatio: '3:4',
-    promptModel: 'gemini-3-pro-preview',
-    imageModel: 'gemini-3-pro-image-preview',
+    promptModel: 'fal-ai/gpt-4.1-mini',
+    imageModel: 'fal-ai/nano-banana-2',
   });
 
   // AI Clothing State
@@ -80,7 +80,7 @@ export default function App() {
 
   const handleGenerate = async () => {
     if (!apiKey) {
-      setErrorMessage("Please enter your Google Gemini API Key in the top bar.");
+      setErrorMessage("Please enter your FAL API Key in the top bar.");
       return;
     }
     if (modelImages.length === 0) {
@@ -241,7 +241,7 @@ export default function App() {
 
   const handleGeneratePose = async () => {
     if (!apiKey) {
-      setPoseErrorMessage("Please enter your Google Gemini API Key in the top bar.");
+      setPoseErrorMessage("Please enter your FAL API Key in the top bar.");
       return;
     }
     if (poseModelImages.length === 0) {
@@ -361,7 +361,7 @@ export default function App() {
 
   const handleFacialEnhancementSubmit = async () => {
     if (!apiKey) {
-      setFacialErrorMessage("Please enter your Google Gemini API Key in the top bar.");
+      setFacialErrorMessage("Please enter your FAL API Key in the top bar.");
       return;
     }
     if (facialModelImages.length === 0) {
@@ -417,7 +417,7 @@ export default function App() {
           facialFaceImage[0].file,
           facialPrompt,
           settings,
-          'gemini-3-pro-image-preview'
+          'fal-ai/nano-banana-2'
         );
 
         setFacialResults(prev => prev.map(r =>
@@ -476,7 +476,7 @@ export default function App() {
         <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
           <div className="flex items-center gap-2">
             <Key className="w-4 h-4 text-slate-300" />
-            <span className="text-sm font-medium text-slate-300">Google Gemini API Key</span>
+            <span className="text-sm font-medium text-slate-300">FAL API Key</span>
           </div>
           <input
             type="password"
@@ -520,7 +520,7 @@ export default function App() {
 
                 <button
                   onClick={() => {
-                    setSettings(prev => ({ ...prev, imageModel: 'gemini-3-pro-image-preview' }));
+                    setSettings(prev => ({ ...prev, imageModel: 'fal-ai/nano-banana-2' }));
                     setActiveFunction('facial-enhancement');
                   }}
                   className="text-left bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 hover:border-indigo-500/60 transition-colors"
