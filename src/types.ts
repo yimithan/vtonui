@@ -12,8 +12,8 @@ export type ItemStatus = 'pending' | 'analyzing' | 'generating' | 'success' | 'e
 
 export type PromptMode = 'default' | 'flat-lay' | 'bag-on-model' | 'bag-no-model' | 'custom';
 
-export type PromptModel = 'fal-ai/gpt-4.1-mini' | 'fal-ai/gemini-2.5-pro' | 'fal-ai/llava-next';
-export type ImageModel = 'fal-ai/nano-banana-2' | 'fal-ai/flux-pro/v1.1-ultra';
+export type PromptModel = 'gemini-3-pro-preview' | 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-lite-preview';
+export type ImageModel = 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview';
 
 export interface GenerationSettings {
   resolution: '1K' | '2K' | '4K';
