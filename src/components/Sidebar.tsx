@@ -126,9 +126,9 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
               disabled={isProcessing}
             >
-              <option value="fal-ai/gpt-4.1-mini">fal-ai/gpt-4.1-mini</option>
-              <option value="fal-ai/gemini-2.5-pro">fal-ai/gemini-2.5-pro</option>
-              <option value="fal-ai/llava-next">fal-ai/llava-next</option>
+              <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+              <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+              <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
             </select>
           </div>
 
@@ -140,8 +140,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
               disabled={isProcessing}
             >
-              <option value="fal-ai/nano-banana-2">fal-ai/nano-banana-2</option>
-              <option value="fal-ai/flux-pro/v1.1-ultra">fal-ai/flux-pro/v1.1-ultra</option>
+              <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
+              <option value="gemini-3.1-flash-image-preview">gemini-3.1-flash-image-preview</option>
             </select>
           </div>
         </div>
