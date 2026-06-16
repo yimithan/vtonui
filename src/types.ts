@@ -5,14 +5,18 @@ export interface FileWithPreview {
 
 export enum AppStatus {
   IDLE = 'IDLE',
-  BATCH_PROCESSING = 'BATCH_PROCESSING', // Replaces ANALYZING/GENERATING for top-level state
-  COOLDOWN = 'COOLDOWN',
+  BATCH_PROCESSING = 'BATCH_PROCESSING',
 }
 
 export type ItemStatus = 'pending' | 'analyzing' | 'generating' | 'success' | 'error';
 
+export type PromptMode = 'default' | 'flat-lay' | 'bag-on-model' | 'bag-no-model' | 'custom';
+
 export type PromptModel = 'gemini-3-pro-preview' | 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-lite-preview';
 export type ImageModel = 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview';
+
+// Which pipeline / interface backs the generation calls.
+export type AIProvider = 'gemini' | 'fal';
 
 export interface GenerationSettings {
   resolution: '1K' | '2K' | '4K';
@@ -31,7 +35,9 @@ export interface TryOnResult {
   modelPreview: string; // Preview of the model image
   modelFileName: string; // Original filename of the uploaded model image
   garmentId: string;
-  garmentPreview: string; // Thumbnail of the garment
+  garmentPreview?: string; // Thumbnail of the garment (optional for non-garment workflows)
+  promptMode: PromptMode; // Prompt mode used for this result
+  variantLabel?: string; // Optional result variant label (e.g. pose name)
   generatedImage?: string;
   status: ItemStatus;
   error?: string;

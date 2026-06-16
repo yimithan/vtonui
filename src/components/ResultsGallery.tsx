@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Download, Loader2, AlertTriangle, CheckCircle2, Archive } from 'lucide-react';
-import { TryOnResult } from '../types';
+import { TryOnResult, PromptMode } from '../types';
+import { PROMPT_MODE_LABELS } from './PromptModeSelector';
 import JSZip from 'jszip';
 
 const getBaseName = (modelFileName: string): string => {
@@ -10,9 +11,12 @@ const getBaseName = (modelFileName: string): string => {
     : modelFileName;
 };
 
-const getOutputFilename = (modelFileName: string, index: number = 0): string => {
+const getOutputFilename = (modelFileName: string, mode: PromptMode, index: number = 0): string => {
   const base = getBaseName(modelFileName);
-  return index === 0 ? `${base}_output.png` : `${base}_output_${index + 1}.png`;
+  const modeSuffix = mode !== 'default' ? `_${mode}` : '';
+  return index === 0
+    ? `${base}${modeSuffix}_output.png`
+    : `${base}${modeSuffix}_output_${index + 1}.png`;
 };
 
 interface ResultsGalleryProps {
@@ -31,10 +35,10 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
   const outputFilenames = useMemo(() => {
     const counts = new Map<string, number>();
     return results.map(result => {
-      const base = getBaseName(result.modelFileName);
-      const count = counts.get(base) || 0;
-      counts.set(base, count + 1);
-      return getOutputFilename(result.modelFileName, count);
+      const key = `${getBaseName(result.modelFileName)}_${result.promptMode}`;
+      const count = counts.get(key) || 0;
+      counts.set(key, count + 1);
+      return getOutputFilename(result.modelFileName, result.promptMode, count);
     });
   }, [results]);
 
@@ -125,13 +129,16 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
       <div className="grid grid-cols-1 gap-6">
       {results.map((result, idx) => (
         <div 
-          key={`${result.modelId}-${result.garmentId}`} 
+          key={`${result.modelId}-${result.garmentId}-${result.promptMode}`} 
           className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50 overflow-hidden flex flex-col md:flex-row gap-4"
         >
           {/* Status / Input Column */}
           <div className="w-full md:w-1/3 flex flex-col gap-3">
-             <div className="flex items-center gap-2 mb-1">
+             <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Result #{idx + 1}</span>
+                <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
+                  {PROMPT_MODE_LABELS[result.promptMode]}
+                </span>
                 {result.status === 'success' && <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Done</span>}
                 {result.status === 'error' && <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Failed</span>}
                 {(result.status === 'analyzing' || result.status === 'generating') && <span className="text-xs bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Processing</span>}
@@ -146,13 +153,20 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
                 </div>
              </div>
              
-             {/* Garment Preview */}
-             <div className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative border border-slate-700">
-                <img src={result.garmentPreview} alt={`Garment input for result ${idx + 1}`} className="w-full h-full object-cover opacity-70" />
-                <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-xs text-white text-center">
-                    Garment
+              {result.garmentPreview && (
+                <div className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative border border-slate-700">
+                   <img src={result.garmentPreview} alt={`Garment input for result ${idx + 1}`} className="w-full h-full object-cover opacity-70" />
+                   <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-xs text-white text-center">
+                       Garment
+                   </div>
                 </div>
-             </div>
+              )}
+
+              {result.variantLabel && (
+                <div className="bg-indigo-500/10 text-indigo-300 p-3 rounded-lg text-xs border border-indigo-500/20">
+                  {result.variantLabel}
+                </div>
+              )}
              
              {result.error && (
                 <div className="bg-red-500/10 text-red-400 p-3 rounded-lg text-xs border border-red-500/20">

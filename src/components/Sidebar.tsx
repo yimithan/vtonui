@@ -1,28 +1,50 @@
-import React from 'react';
-import { Settings, Key, AlertCircle, FileText, Cpu } from 'lucide-react';
-import { GenerationSettings, PromptModel, ImageModel } from '../types';
+import React, { useState } from 'react';
+import { Settings, AlertCircle, FileText, Cpu } from 'lucide-react';
+import { GenerationSettings, PromptModel, ImageModel, PromptMode } from '../types';
+import { DEFAULT_PROMPT_MAKER, PROMPT_BAG_ON_MODEL, PROMPT_BAG_NO_MODEL, PROMPT_FLAT_LAY } from '../constants';
 
 interface SidebarProps {
-  apiKey: string;
-  setApiKey: (key: string) => void;
   settings: GenerationSettings;
   setSettings: (settings: GenerationSettings) => void;
   isProcessing: boolean;
-  onPromptConfigChange: (content: string | null) => void;
+  onPromptsByModeChange: (prompts: Record<PromptMode, string>) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
-  apiKey, 
-  setApiKey, 
   settings, 
   setSettings, 
   isProcessing,
-  onPromptConfigChange
+  onPromptsByModeChange
 }) => {
+  const [promptMode, setPromptMode] = useState<PromptMode>('default');
 
-  const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value.trim();
-    onPromptConfigChange(value || null);
+  const [promptsByMode, setPromptsByMode] = useState<Record<PromptMode, string>>({
+    'default': DEFAULT_PROMPT_MAKER,
+    'flat-lay': PROMPT_FLAT_LAY,
+    'bag-on-model': PROMPT_BAG_ON_MODEL,
+    'bag-no-model': PROMPT_BAG_NO_MODEL,
+    'custom': '',
+  });
+
+  const promptText = promptsByMode[promptMode];
+
+  const modeDefaults: Record<PromptMode, string> = {
+    'default': DEFAULT_PROMPT_MAKER,
+    'flat-lay': PROMPT_FLAT_LAY,
+    'bag-on-model': PROMPT_BAG_ON_MODEL,
+    'bag-no-model': PROMPT_BAG_NO_MODEL,
+    'custom': '',
+  };
+
+  const handlePromptModeChange = (mode: PromptMode) => {
+    setPromptMode(mode);
+  };
+
+  const handlePromptTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    const updated = { ...promptsByMode, [promptMode]: value };
+    setPromptsByMode(updated);
+    onPromptsByModeChange(updated);
   };
 
   return (
@@ -31,48 +53,59 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-2 bg-indigo-500 rounded-lg">
           <Settings className="w-6 h-6 text-white" />
         </div>
-        <h1 className="text-xl font-bold text-white">Virtual Try-On</h1>
+        <h1 className="text-xl font-bold text-white">AI Clothing</h1>
       </div>
 
       <div className="space-y-6">
-        {/* API Key Section */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <Key className="w-4 h-4" />
-            Google Gemini API Key
-          </label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter your API Key"
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500"
-            disabled={isProcessing}
-          />
-          <p className="text-xs text-slate-500">
-            Your key is processed locally and never stored.
-          </p>
-        </div>
-
-        <div className="h-px bg-slate-700 my-4" />
 
         {/* Prompt Configuration Section */}
         <div className="space-y-2">
-          <label htmlFor="custom-prompt" className="text-sm font-medium text-slate-300 flex items-center gap-2">
+          <label htmlFor="prompt-mode" className="text-sm font-medium text-slate-300 flex items-center gap-2">
             <FileText className="w-4 h-4" />
-            Custom Prompt (Optional)
+            Prompt Mode
           </label>
-          <textarea
-            id="custom-prompt"
-            aria-describedby="custom-prompt-help"
-            onChange={handlePromptChange}
-            placeholder="Enter custom prompt instructions (optional)"
-            rows={6}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y"
+          <select
+            id="prompt-mode"
+            value={promptMode}
+            onChange={(e) => handlePromptModeChange(e.target.value as PromptMode)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
             disabled={isProcessing}
-          />
-          <p id="custom-prompt-help" className="text-xs text-slate-500">
-            Optional. Enter a custom prompt to override the default analysis behavior.
+          >
+            <option value="default">Default model dressing</option>
+            <option value="flat-lay">Flat-lay Garment image</option>
+            <option value="bag-on-model">Bag wore on model</option>
+            <option value="bag-no-model">Bag with no model</option>
+            <option value="custom">Custom prompt</option>
+          </select>
+
+          <div className="relative mt-2">
+            <textarea
+              id="prompt-text"
+              aria-describedby="prompt-text-help"
+              value={promptText}
+              onChange={handlePromptTextChange}
+              placeholder={promptMode === 'custom' ? 'Enter custom prompt instructions' : ''}
+              rows={8}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-500 resize-y"
+              disabled={isProcessing}
+            />
+            {promptMode !== 'custom' && promptText !== modeDefaults[promptMode] && (
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = { ...promptsByMode, [promptMode]: modeDefaults[promptMode] };
+                  setPromptsByMode(updated);
+                  onPromptsByModeChange(updated);
+                }}
+                disabled={isProcessing}
+                className="absolute top-2 right-2 text-xs text-slate-400 hover:text-indigo-300 bg-slate-800/80 px-2 py-0.5 rounded transition-colors"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          <p id="prompt-text-help" className="text-xs text-slate-500">
+            Edit the prompt to customize the analysis behavior.
           </p>
         </div>
 
