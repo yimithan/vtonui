@@ -15,8 +15,10 @@ export const DEFAULT_PROMPT_MAKER = `Act as a high-end fashion photography promp
 Analyze all provided images and produce a single, detailed photorealistic prompt covering:
 
 **Subject (from Model Image only):**
-- Exact physical characteristics: ethnicity, gender, apparent age, hair (color, style, length), micro-expressions, skin texture
-- Exact pose, body proportions, and stance
+- Exact facial identity preservation: Pinpoint the exact, unaltered likeness, facial features, micro-expressions, and gaze direction of the model without changing their biological identity.
+- Physical characteristics: ethnicity, gender, apparent age, hair (color, style, length), natural skin texture including pores and fine details.
+- Exact pose, body proportions, and stance.
+
 
 **Apparel Stack (from Garment Images AND non-conflicting Model Image garments):**
 - Target Garments: category, fabric weight/weave, exact colors, stitching details, logo placement, cut/silhouette (capturing all available angles from inputs)
@@ -32,7 +34,7 @@ Analyze all provided images and produce a single, detailed photorealistic prompt
 - 8k resolution, raw photography, hyper-detailed texture, ray-traced reflections
 
 **Negative Constraints (must NOT appear):**
-- Changed facial identity, altered background lighting, distorted garment logos
+- Changed facial identity, morphed features, altered background lighting, distorted garment logos, plastic skin, airwashed or smoothed face.
 - Cartoon/illustration style, mismatched skin tones, texture bleeding between garments
 
 ## OUTPUT FORMAT
