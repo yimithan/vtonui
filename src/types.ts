@@ -38,6 +38,7 @@ export interface TryOnResult {
   garmentPreview?: string; // Thumbnail of the garment (optional for non-garment workflows)
   promptMode: PromptMode; // Prompt mode used for this result
   variantLabel?: string; // Optional result variant label (e.g. pose name)
+  generatedPrompt?: string; // Descriptive prompt produced by the prompt-generation model
   generatedImage?: string;
   status: ItemStatus;
   error?: string;

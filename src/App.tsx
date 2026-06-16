@@ -204,7 +204,7 @@ export default function App() {
 
         setResults(prev => prev.map(r =>
           (r.modelId === modelId && r.garmentId === group.id && r.promptMode === promptMode)
-            ? { ...r, status: 'generating' }
+            ? { ...r, status: 'generating', generatedPrompt: analysisPrompt }
             : r
         ));
 

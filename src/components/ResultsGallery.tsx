@@ -1,8 +1,55 @@
 import React, { useMemo, useState } from 'react';
-import { Download, Loader2, AlertTriangle, CheckCircle2, Archive } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, CheckCircle2, Archive, FileText, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { TryOnResult, PromptMode } from '../types';
 import { PROMPT_MODE_LABELS } from './PromptModeSelector';
 import JSZip from 'jszip';
+
+// Preview of the descriptive prompt produced by the prompt-generation model for
+// a single result. Collapsed by default (prompts are long); expandable + copyable.
+const GeneratedPromptPreview: React.FC<{ prompt: string }> = ({ prompt }) => {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard may be blocked; ignore */
+    }
+  };
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-700 rounded-lg text-xs overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:bg-slate-800/60 transition-colors"
+      >
+        {open ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+        <FileText className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
+        <span className="font-semibold">Generated Prompt</span>
+        <span className="text-slate-500 font-normal">({prompt.length} chars)</span>
+        <span
+          onClick={handleCopy}
+          title="Copy prompt"
+          className="ml-auto p-0.5 text-slate-400 hover:text-slate-200"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+        </span>
+      </button>
+      {!open ? (
+        <p className="px-2.5 pb-2 text-slate-400 line-clamp-2 leading-relaxed">{prompt}</p>
+      ) : (
+        <pre className="px-2.5 pb-2 text-slate-300 whitespace-pre-wrap break-words leading-relaxed max-h-64 overflow-y-auto">
+          {prompt}
+        </pre>
+      )}
+    </div>
+  );
+};
 
 const getBaseName = (modelFileName: string): string => {
   const lastDot = modelFileName.lastIndexOf('.');
@@ -167,7 +214,11 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
                   {result.variantLabel}
                 </div>
               )}
-             
+
+              {result.generatedPrompt && (
+                <GeneratedPromptPreview prompt={result.generatedPrompt} />
+              )}
+
              {result.error && (
                 <div className="bg-red-500/10 text-red-400 p-3 rounded-lg text-xs border border-red-500/20">
                     {result.error}
