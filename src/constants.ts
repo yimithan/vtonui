@@ -149,8 +149,11 @@ The images are provided in a fixed order:
 2. **Fill gaps only from the provided views.** If a region (e.g., the back) is occluded in one view but visible in another Garment Image, reconstruct it strictly from that other view. Only when an area is truly absent from ALL Garment Images may it be conservatively and plausibly completed — and even then it must remain visually consistent with the documented fabric and never introduce new logos, graphics, text, or design elements.
 3. **No invented branding.** Do not add, remove, relocate, or alter any logo, label, graphic, or text. Reproduce only what is actually present in the Garment Images.
 
-## TRANSFORMATION RULE
+## TRANSFORMATION RULE (TRUE FLAT-LAY ONLY — NO GHOST MANNEQUIN)
 Change the garment's state from "worn / dynamic" (3D, body-shaped folds) to "unworn / static" (2D flat-lay): a perfectly neat, symmetrical, top-down front-facing arrangement.
+1. **The garment lies physically FLAT on a horizontal surface.** It is laid down on the ground/table and photographed straight from above. It is fully collapsed and deflated, with its front and back panels resting flat against each other, exactly as a real garment behaves when placed on a table.
+2. **NO internal body volume.** The garment must NOT retain any 3D torso, chest, shoulder, or limb volume. There is NO body inside it — not even an invisible one. Do not produce a "ghost mannequin" / "invisible mannequin" / "hollow man" effect where the garment looks air-filled or worn by a transparent person. No inflated sleeves, no rounded chest, no standing collar held up by an unseen neck.
+3. **Not hanging, not standing, not floating.** The garment is not on a hanger, not on a stand, not suspended in mid-air, and not standing upright. Gravity has flattened it onto the surface. Sleeves are laid out flat and slightly angled, the hem lies flat, and any folds are the natural creases of fabric resting on a flat plane — not folds shaped by a body.
 
 ## ZERO-BLEED CONSTRAINTS (CRITICAL)
 1. **NO Biological Elements:** The result must have ZERO trace of any model, skin, hair, limbs, or face — from EITHER the Model Image or the Garment Images.
@@ -165,12 +168,13 @@ Analyze ONLY the Garment Images and produce a single, detailed photorealistic pr
 - Fabric definition: precise texture (e.g., rigid twill, soft knit, slick nylon), weight, weave, and any specific washing/aging effects (e.g., stonewashed, acid-wash, pilling).
 - Construction details: stitching pattern/color, button/zipper types and metallic tone, exact placement of pockets, collars, and hems.
 - Branding: precise description and location of all visible logos, graphic prints, or tags EXACTLY as they appear — no additions or omissions.
-- State: perfectly neat, symmetrical front arrangement, as if prepared for a luxury catalog. Zippers closed, buttons fastened, sleeves neatly aligned.
+- State: laid completely flat on the surface, fully collapsed with no body inside, perfectly neat, symmetrical front arrangement, as if prepared for a luxury catalog. Zippers closed, buttons fastened, sleeves neatly aligned and laid flat.
 
 **Presentation & Lighting:**
-- Environment: Seamless, pure, sterile studio white background (Color Code: FFFFFF).
-- Perspective: Precise 90-degree top-down (overhead) flat-lay (knolling style).
-- Lighting: Even, high-key studio softbox lighting. Minimal, soft, diffuse contact shadows directly beneath the fabric edges, no harsh cast shadows.
+- Environment: Seamless, pure, sterile studio white background (Color Code: FFFFFF), with the garment lying flat ON the surface.
+- Perspective: Precise 90-degree top-down (overhead) flat-lay (knolling style), camera pointing straight down at a garment resting flat on the ground — NOT a front-facing product shot of a worn or hanging garment.
+- Form: completely flat and deflated; zero three-dimensional body volume; no invisible/ghost mannequin; not on a hanger, stand, or hook.
+- Lighting: Even, high-key studio softbox lighting. Minimal, soft, diffuse contact shadows directly beneath the fabric edges (the flat shadow a garment casts when lying on a surface), no harsh cast shadows, no shadow implying a 3D body.
 
 **Technical Specifications:**
 - Photorealistic commercial product photography, focus stacked.
@@ -180,8 +184,10 @@ Analyze ONLY the Garment Images and produce a single, detailed photorealistic pr
 The descriptive prompt you output MUST explicitly instruct the image generator to:
 - Reconstruct the garment ONLY from the isolated garment reference images and to completely ignore any image that depicts a person, bag, or backpack.
 - Reproduce every documented area of the garment exactly, inventing nothing for regions already shown in the references.
+- Render the garment as a TRUE flat-lay lying flat on a surface, photographed straight from above, fully collapsed with NO body volume — and to explicitly avoid any ghost-mannequin / invisible-mannequin / air-filled / 3D worn-looking / hanging / standing result.
 
 **Negative Constraints (must NOT appear):**
+- Ghost mannequin, invisible mannequin, hollow-man effect, air-filled or inflated garment, 3D body-shaped volume, torso/chest/shoulder shape, garment appearing worn by an unseen person, standing or upright garment, garment on a hanger/stand/hook, garment floating or suspended in mid-air, body-shaped folds, shadows implying an internal body.
 - Any garment, bag, backpack, or accessory taken from the model/reference person; models, skin, hair, limbs; background elements; wrinkles from human wear; distorted, added, or removed logos; AI-invented patterns/graphics on documented areas; uneven white background (grey/off-white); floating edges; harsh shadows; mismatched colors; extra garments from the source stack; accessories not part of the main garment.
 
 ## OUTPUT FORMAT
