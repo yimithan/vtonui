@@ -20,25 +20,37 @@ const plog = (
  *
  * This file mirrors the public API of geminiService.ts exactly
  * (analyzeImages / generateTryOnImage / generateFacialEnhancement) so the two
- * pipelines are interchangeable.
+ * pipelines are interchangeable. It is a TWO-STAGE pipeline, identical in shape
+ * to the Gemini one:
+ *   - Analysis (vision -> text prompt):  OpenRouter on fal, OpenAI-compatible
+ *     chat-completions endpoint. The model id MUST be a valid OpenRouter slug
+ *     (e.g. "google/gemini-2.5-flash" / "google/gemini-2.5-pro"). The Gemini-3
+ *     slugs ("google/gemini-3-pro") are NOT valid OpenRouter ids and fal
+ *     rejects them with a 400 ("not a valid model ID"), which is what broke the
+ *     text stage — so the app's promptModel ids are mapped to valid OpenRouter
+ *     Gemini slugs below.
+ *   - Image generation/editing:          fal-ai Nano Banana edit endpoints,
+ *     which take a `prompt` + `image_urls`.
  *
- * Unlike the Gemini pipeline (which runs a separate text model to turn the
- * prompt-maker template into a descriptive prompt, then a second image model to
- * render it), the fal Nano Banana models are themselves multimodal Gemini image
- * models — per the fal docs they take a `prompt` + `image_urls` and perform the
- * generation/editing in a single call. So the fal pipeline is SINGLE-SHOT:
- * `analyzeImages` does no network call (it forwards the prompt-maker
- * instructions verbatim) and `generateTryOnImage` sends those instructions plus
- * every image straight to the Nano Banana edit endpoint. This also removes the
- * old OpenRouter text hop, whose model id ("google/gemini-3-pro") fal rejected
- * with a 400 ("not a valid model ID").
- *
- * Endpoints below come straight from the fal model API docs:
+ * Image endpoints come straight from the fal model API docs:
  *   - Nano Banana Pro (Gemini 3 Pro Image):     fal-ai/nano-banana-pro
  *   - Nano Banana 2   (Gemini 3.1 Flash Image): fal-ai/nano-banana-2
  * We target the `/edit` variant of each because the VTO flow always supplies
  * input images (image_urls) for editing rather than pure text-to-image.
  */
+
+// App promptModel id -> OpenRouter (fal) text model slug.
+// These must be valid OpenRouter model ids. Per the fal OpenRouter docs the
+// Gemini family is exposed under the 2.5 slugs; the gemini-3 slugs the app's UI
+// labels use do not exist on OpenRouter yet, so they are mapped here.
+const FAL_TEXT_MODEL_MAP: Record<string, string> = {
+  'gemini-3-pro-preview': 'google/gemini-2.5-pro',
+  'gemini-3.1-pro-preview': 'google/gemini-2.5-pro',
+  'gemini-3.1-flash-lite-preview': 'google/gemini-2.5-flash-lite',
+};
+
+// Documented-valid default (used verbatim in the fal OpenRouter API docs).
+const FAL_TEXT_FALLBACK = 'google/gemini-2.5-flash';
 
 // App imageModel id -> fal image edit endpoint (Nano Banana Pro / Nano Banana 2).
 const FAL_IMAGE_MODEL_MAP: Record<string, string> = {
@@ -50,7 +62,15 @@ const FAL_IMAGE_MODEL_MAP: Record<string, string> = {
 
 const FAL_IMAGE_FALLBACK = 'fal-ai/nano-banana-pro/edit';
 
-// Full data URI (with the data:...;base64, prefix) — required for fal image_urls.
+// OpenAI-compatible router on fal (handles multimodal vision -> text).
+const FAL_OPENAI_BASE = 'https://fal.run/openrouter/router/openai/v1';
+
+type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+// Full data URI (with the data:...;base64, prefix) — required for fal image_urls
+// and for OpenAI-compatible image_url parts.
 const fileToDataUri = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -98,34 +118,92 @@ const extractFalImage = async (result: any): Promise<string> => {
 };
 
 export const analyzeImages = async (
-  _apiKey: string,
-  _modelImage: File,
+  apiKey: string,
+  modelImage: File,
   garmentImages: File[],
   promptInstructions: string,
   promptModel: string = 'gemini-3-pro-preview',
   processId?: string
 ): Promise<string> => {
-  // The fal Nano Banana models are multimodal and do analysis + rendering in a
-  // single image call, so there is NO separate text/vision request here (which
-  // is what previously failed with "google/gemini-3-pro is not a valid model
-  // ID"). We forward the prompt-maker instructions verbatim to be sent, together
-  // with the images, directly to the Nano Banana edit endpoint in
-  // generateTryOnImage.
-  plog(processId, 'info', `[fal:analyze] START — single-shot pipeline: no separate text model (Nano Banana handles vision + render in one call)`);
+  if (!apiKey) throw new Error('API Key is required');
+
+  const model = FAL_TEXT_MODEL_MAP[promptModel] ?? FAL_TEXT_FALLBACK;
+  plog(processId, 'info', `[fal:analyze] START — sub-process "analyzeImages" (prompt-maker)`);
   plog(
     processId,
     'proof',
-    `[fal:analyze] NO TEXT MODEL — requested promptModel="${promptModel}" is not used by fal; the prompt-maker instructions are passed straight to the image model.`,
+    `[fal:analyze] MODEL MAP PROOF — app promptModel="${promptModel}" -> OpenRouter textModel="${model}"${FAL_TEXT_MODEL_MAP[promptModel] ? '' : ' (FALLBACK — requested id not mapped)'}`,
   );
 
-  // PROOF: the exact instructions that will be sent to the image model.
-  await logPromptProof(processId ?? 'noproc', 'fal:analyze', '(none — single-shot)', promptInstructions, {
+  // PROOF: exactly which prompt instructions are being sent.
+  await logPromptProof(processId ?? 'noproc', 'fal:analyze', model, promptInstructions, {
     stage: 'prompt-maker-instructions',
     garments: garmentImages.length,
   });
-  plog(processId, 'info', `[fal:analyze] DONE — instructions forwarded to image model`);
 
-  return promptInstructions.trim();
+  const modelUri = await fileToDataUri(modelImage);
+  const garmentUris = await Promise.all(garmentImages.map(fileToDataUri));
+
+  const content: ContentPart[] = [
+    { type: 'text', text: promptInstructions },
+    { type: 'image_url', image_url: { url: modelUri } },
+    ...garmentUris.map((url) => ({ type: 'image_url' as const, image_url: { url } })),
+  ];
+
+  // PROOF: fingerprint every transmitted image + assert image_url part count.
+  if (processId) {
+    await logImageTransmissionProof(processId, 'fal:analyze', modelImage, garmentImages);
+  }
+  const imageParts = content.filter(p => p.type === 'image_url').length;
+  const expectedImages = 1 + garmentImages.length;
+  plog(
+    processId,
+    imageParts === expectedImages ? 'proof' : 'error',
+    `[fal:analyze] REQUEST PAYLOAD PROOF — image_url parts=${imageParts} (expected ${expectedImages}) ${imageParts === expectedImages ? '✓' : '✗'}`,
+  );
+
+  let res: Response;
+  try {
+    res = await fetch(`${FAL_OPENAI_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Key ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content }],
+      }),
+    });
+  } catch (e: any) {
+    // Network/CORS — fal recommends a server-side proxy for browser usage.
+    throw new Error(`fal text request failed (network/CORS): ${e?.message ?? e}`);
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`API Key authorization failed (${res.status}): ${detail.slice(0, 200)}`);
+    }
+    throw new Error(`fal text request failed (${res.status}): ${detail.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const text: unknown = data?.choices?.[0]?.message?.content;
+
+  plog(processId, 'info', `[fal:analyze] response received — hasText: ${!!text}`);
+
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    throw new Error('No analysis generated by the fal text model');
+  }
+
+  // PROOF: the exact generated prompt that will be fed to the image model.
+  await logPromptProof(processId ?? 'noproc', 'fal:analyze→prompt', model, text.trim(), {
+    stage: 'generated-prompt-output',
+  });
+  plog(processId, 'info', `[fal:analyze] DONE — sub-process "analyzeImages" complete`);
+
+  return text.trim();
 };
 
 export const generateTryOnImage = async (
