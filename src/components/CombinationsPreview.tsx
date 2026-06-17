@@ -83,6 +83,21 @@ const CombinationsPreview: React.FC<CombinationsPreviewProps> = ({
                   </span>
                 )}
               </div>
+
+              {combo.group.files.some(f => f.description?.trim()) && (
+                <div className="text-[11px] text-slate-400 bg-slate-900/50 border border-slate-700/60 rounded-lg px-2.5 py-1.5">
+                  <span className="font-semibold text-slate-300">Garment image labels:</span>
+                  <ul className="mt-0.5 space-y-0.5">
+                    {combo.group.files.map((f, i) => (
+                      <li key={i} className="truncate">
+                        <span className="text-slate-500">#{i + 1}</span>{' '}
+                        {f.description?.trim() || <span className="text-slate-600">— (no label)</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <label className="text-[11px] text-slate-400 flex items-center gap-1">
                 <Plus className="w-3 h-3" />
                 Extra prompt text for this combination (appended to the mode prompt)

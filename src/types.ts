@@ -1,6 +1,7 @@
 export interface FileWithPreview {
   file: File;
   preview: string;
+  description?: string; // Optional per-image label (e.g. "front view", "rear") — used for garment images
 }
 
 export enum AppStatus {

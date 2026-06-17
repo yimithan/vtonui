@@ -68,6 +68,7 @@ const GarmentList: React.FC<GarmentListProps> = ({ groups, onGroupsChange, disab
             <UploadZone
               label={`Garment Images`}
               multiple
+              withDescriptions
               files={group.files}
               onFilesChange={(files) => updateGroupFiles(group.id, files)}
               disabled={disabled}

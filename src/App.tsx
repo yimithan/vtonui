@@ -203,16 +203,25 @@ export default function App() {
       const modelId = `model-${modelIdx}`;
       const processId = newProcessId();
       const baseInstructions = promptsByMode[promptMode] || DEFAULT_PROMPT_MAKER;
+      // Per-garment-image view labels (front/side/rear/detail) → a numbered guide
+      // appended to the prompt-maker instructions so the model knows what each
+      // positional garment image is and uses every view.
+      const anyDesc = group.files.some(f => f.description?.trim());
+      const guide = anyDesc
+        ? `\n\n## GARMENT IMAGE GUIDE\nThe garment images follow the model image in this order. Use ALL of them; treat multiple views/angles of the same garment as one garment and synthesize them:\n` +
+          group.files.map((f, i) => `  - Garment image ${i + 1}: ${f.description?.trim() || '(no description provided)'}`).join('\n')
+        : '';
       const extra = (extraPromptByCombo[key] || '').trim();
-      const promptInstructions = extra
-        ? `${baseInstructions}\n\n## ADDITIONAL PER-COMBINATION INSTRUCTIONS (append; do not override the rules above)\n${extra}`
-        : baseInstructions;
+      let promptInstructions = baseInstructions + guide;
+      if (extra) {
+        promptInstructions += `\n\n## ADDITIONAL PER-COMBINATION INSTRUCTIONS (append; do not override the rules above)\n${extra}`;
+      }
       const isCustomized = baseInstructions !== (defaultPromptByMode[promptMode] ?? '');
       logProcess(
         processId,
         'proof',
-        `PROCESS START — mode="${promptMode}"${isCustomized ? ' (EDITED from default)' : ' (default template)'}${extra ? ' +extra-text' : ''}${flatLay ? ' [flat-lay: model ignored]' : ''} · model="${modelImage.file.name}" · garmentGroup=${group.id} · garments=${group.files.length} [${group.files.map(f => f.file.name).join(', ')}]`,
-        `Pipeline: ${provider.toUpperCase()}\nPrompt mode: ${promptMode}\nModel image: ${modelImage.file.name}${flatLay ? ' (ignored reference for flat-lay)' : ''}\nGarment group: ${group.id}\nGarment files (${group.files.length}):\n${group.files.map((f, i) => `  ${i + 1}. ${f.file.name}`).join('\n')}\nExtra per-combination text: ${extra || '(none)'}\nText model: ${settings.promptModel}\nImage model: ${settings.imageModel}\nResolution/Aspect: ${settings.resolution}/${settings.aspectRatio}`,
+        `PROCESS START — mode="${promptMode}"${isCustomized ? ' (EDITED from default)' : ' (default template)'}${anyDesc ? ' +garment-labels' : ''}${extra ? ' +extra-text' : ''}${flatLay ? ' [flat-lay: model ignored]' : ''} · model="${modelImage.file.name}" · garmentGroup=${group.id} · garments=${group.files.length} [${group.files.map(f => f.file.name).join(', ')}]`,
+        `Pipeline: ${provider.toUpperCase()}\nPrompt mode: ${promptMode}\nModel image: ${modelImage.file.name}${flatLay ? ' (ignored reference for flat-lay)' : ''}\nGarment group: ${group.id}\nGarment files (${group.files.length}):\n${group.files.map((f, i) => `  ${i + 1}. ${f.file.name}${f.description?.trim() ? ` — ${f.description.trim()}` : ''}`).join('\n')}\nExtra per-combination text: ${extra || '(none)'}\nText model: ${settings.promptModel}\nImage model: ${settings.imageModel}\nResolution/Aspect: ${settings.resolution}/${settings.aspectRatio}`,
       );
 
       if (shouldAbortRef.current) {
