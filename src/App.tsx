@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
+import CombinationsPreview from './components/CombinationsPreview';
 import PoseSidebar from './components/PoseSidebar';
 import FacialSidebar from './components/FacialSidebar';
 import UploadZone from './components/UploadZone';
@@ -7,7 +8,7 @@ import GarmentList from './components/GarmentList';
 import ResultsGallery from './components/ResultsGallery';
 import DebugConsole from './components/DebugConsole';
 import PromptModeSelector from './components/PromptModeSelector';
-import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptMode, AIProvider } from './types';
+import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptMode, AIProvider, PlannedCombo } from './types';
 import { getService } from './services/aiService';
 import { addLog, newProcessId, logProcess } from './services/debugLogger';
 import {
@@ -34,6 +35,35 @@ const defaultPromptByMode: Record<PromptMode, string> = {
   'bag-no-model': PROMPT_BAG_NO_MODEL,
   'custom': '',
 };
+
+// Flat-lay produces a single combination per garment (the model image is an
+// ignored reference), so it does not multiply by the model image count like the
+// other modes — avoiding the wasteful model×garment cartesian product.
+const comboKeyOf = (mode: PromptMode, modelIdx: number, groupId: string, flatLay: boolean) =>
+  `${mode}__${flatLay ? 'flat' : modelIdx}__${groupId}`;
+
+function buildCombinations(
+  modes: PromptMode[],
+  modelImages: FileWithPreview[],
+  validGroups: GarmentGroup[],
+): PlannedCombo[] {
+  const combos: PlannedCombo[] = [];
+  for (const mode of modes) {
+    const flatLay = mode === 'flat-lay';
+    if (flatLay) {
+      for (const group of validGroups) {
+        combos.push({ key: comboKeyOf(mode, 0, group.id, true), promptMode: mode, modelIdx: 0, group, flatLay: true });
+      }
+    } else {
+      for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
+        for (const group of validGroups) {
+          combos.push({ key: comboKeyOf(mode, modelIdx, group.id, false), promptMode: mode, modelIdx, group, flatLay: false });
+        }
+      }
+    }
+  }
+  return combos;
+}
 
 export default function App() {
   // Pipeline selection (two interchangeable interfaces over the same UI/prompts).
@@ -95,6 +125,16 @@ export default function App() {
   const [shouldAbortFacial, setShouldAbortFacial] = useState(false);
   const shouldAbortFacialRef = useRef(false);
 
+  // Reactive plan of what will be generated — drives the combinations preview
+  // shown before any request is sent. Extra per-combination prompt text is keyed
+  // by the same stable combo key and appended to that combination's prompt.
+  const validGroups = useMemo(() => garmentGroups.filter(g => g.files.length > 0), [garmentGroups]);
+  const plannedCombos = useMemo(
+    () => buildCombinations(selectedStudioModes, modelImages, validGroups),
+    [selectedStudioModes, modelImages, validGroups]
+  );
+  const [extraPromptByCombo, setExtraPromptByCombo] = useState<Record<string, string>>({});
+
   const handleGenerate = async () => {
     if (!apiKey) {
       setErrorMessage(`Please enter your ${provider === 'fal' ? 'fal' : 'Google Gemini'} API Key in the top bar.`);
@@ -104,7 +144,6 @@ export default function App() {
       setErrorMessage("Please upload at least one model image.");
       return;
     }
-    const validGroups = garmentGroups.filter(g => g.files.length > 0);
     if (validGroups.length === 0) {
       setErrorMessage("Please upload at least one garment.");
       return;
@@ -121,51 +160,42 @@ export default function App() {
 
     const svc = getService(provider);
 
-    const totalCombinations = selectedStudioModes.length * modelImages.length * validGroups.length;
+    const combos = plannedCombos;
+    const totalCombinations = combos.length;
     setBatchProgress({ current: 0, total: totalCombinations });
-    addLog('info', `[Batch] Starting AI Clothing batch via ${provider.toUpperCase()} — ${selectedStudioModes.length} mode(s) × ${modelImages.length} model(s) × ${validGroups.length} garment group(s) = ${totalCombinations} combination(s)`);
+    const flatLayCount = combos.filter(c => c.flatLay).length;
+    addLog('info', `[Batch] Starting AI Clothing batch via ${provider.toUpperCase()} — ${totalCombinations} combination(s)${flatLayCount ? ` (incl. ${flatLayCount} flat-lay: one per garment, model count ignored)` : ''}`);
 
-    const initialResults: TryOnResult[] = [];
-    for (const mode of selectedStudioModes) {
-      for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
-        for (const group of validGroups) {
-          initialResults.push({
-            modelId: `model-${modelIdx}`,
-            modelPreview: modelImages[modelIdx].preview,
-            modelFileName: modelImages[modelIdx].file.name,
-            garmentId: group.id,
-            garmentPreview: group.files[0].preview,
-            promptMode: mode,
-            status: 'pending'
-          });
-        }
-      }
-    }
+    const initialResults: TryOnResult[] = combos.map(c => ({
+      modelId: `model-${c.modelIdx}`,
+      modelPreview: modelImages[c.modelIdx].preview,
+      modelFileName: modelImages[c.modelIdx].file.name,
+      garmentId: c.group.id,
+      garmentPreview: c.group.files[0].preview,
+      promptMode: c.promptMode,
+      hideModel: c.flatLay,
+      status: 'pending',
+    }));
     setResults(initialResults);
-
-    const combinations: { modelIdx: number; group: GarmentGroup; promptMode: PromptMode }[] = [];
-    for (const mode of selectedStudioModes) {
-      for (let modelIdx = 0; modelIdx < modelImages.length; modelIdx++) {
-        for (const group of validGroups) {
-          combinations.push({ modelIdx, group, promptMode: mode });
-        }
-      }
-    }
 
     let hasGlobalError = false;
     let completedCount = 0;
 
-    const processCombination = async ({ modelIdx, group, promptMode }: { modelIdx: number; group: GarmentGroup; promptMode: PromptMode }) => {
+    const processCombination = async ({ modelIdx, group, promptMode, key, flatLay }: PlannedCombo) => {
       const modelImage = modelImages[modelIdx];
       const modelId = `model-${modelIdx}`;
       const processId = newProcessId();
-      const promptInstructions = promptsByMode[promptMode] || DEFAULT_PROMPT_MAKER;
-      const isCustomized = promptInstructions !== (defaultPromptByMode[promptMode] ?? '');
+      const baseInstructions = promptsByMode[promptMode] || DEFAULT_PROMPT_MAKER;
+      const extra = (extraPromptByCombo[key] || '').trim();
+      const promptInstructions = extra
+        ? `${baseInstructions}\n\n## ADDITIONAL PER-COMBINATION INSTRUCTIONS (append; do not override the rules above)\n${extra}`
+        : baseInstructions;
+      const isCustomized = baseInstructions !== (defaultPromptByMode[promptMode] ?? '');
       logProcess(
         processId,
         'proof',
-        `PROCESS START — mode="${promptMode}"${isCustomized ? ' (EDITED from default)' : ' (default template)'} · model="${modelImage.file.name}" · garmentGroup=${group.id} · garments=${group.files.length} [${group.files.map(f => f.file.name).join(', ')}]`,
-        `Pipeline: ${provider.toUpperCase()}\nPrompt mode: ${promptMode}\nModel image: ${modelImage.file.name}\nGarment group: ${group.id}\nGarment files (${group.files.length}):\n${group.files.map((f, i) => `  ${i + 1}. ${f.file.name}`).join('\n')}\nText model: ${settings.promptModel}\nImage model: ${settings.imageModel}\nResolution/Aspect: ${settings.resolution}/${settings.aspectRatio}`,
+        `PROCESS START — mode="${promptMode}"${isCustomized ? ' (EDITED from default)' : ' (default template)'}${extra ? ' +extra-text' : ''}${flatLay ? ' [flat-lay: model ignored]' : ''} · model="${modelImage.file.name}" · garmentGroup=${group.id} · garments=${group.files.length} [${group.files.map(f => f.file.name).join(', ')}]`,
+        `Pipeline: ${provider.toUpperCase()}\nPrompt mode: ${promptMode}\nModel image: ${modelImage.file.name}${flatLay ? ' (ignored reference for flat-lay)' : ''}\nGarment group: ${group.id}\nGarment files (${group.files.length}):\n${group.files.map((f, i) => `  ${i + 1}. ${f.file.name}`).join('\n')}\nExtra per-combination text: ${extra || '(none)'}\nText model: ${settings.promptModel}\nImage model: ${settings.imageModel}\nResolution/Aspect: ${settings.resolution}/${settings.aspectRatio}`,
       );
 
       if (shouldAbortRef.current) {
@@ -247,12 +277,12 @@ export default function App() {
     const worker = async () => {
       while (!shouldAbortRef.current) {
         const idx = queueIndex++;
-        if (idx >= combinations.length) break;
-        await processCombination(combinations[idx]);
+        if (idx >= combos.length) break;
+        await processCombination(combos[idx]);
       }
     };
 
-    const workerCount = Math.min(MAX_CONCURRENT_TRYON, combinations.length);
+    const workerCount = Math.min(MAX_CONCURRENT_TRYON, combos.length);
     await Promise.all(Array.from({ length: workerCount }, worker));
 
     if (shouldAbortRef.current) {
@@ -724,11 +754,44 @@ export default function App() {
                   </div>
 
                   <div className="lg:col-span-8 space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-bold text-white">Results Gallery</h3>
-                      {results.length > 0 && <span className="text-sm text-slate-400">{results.filter(r => r.status === 'success').length} Completed</span>}
-                    </div>
-                    <ResultsGallery results={results} />
+                    {results.length === 0 ? (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xl font-bold text-white">Planned Combinations</h3>
+                          <span className="text-sm text-slate-400">
+                            {plannedCombos.length} will be generated · no requests sent yet
+                          </span>
+                        </div>
+                        <CombinationsPreview
+                          combos={plannedCombos}
+                          modelImages={modelImages}
+                          extraPromptByCombo={extraPromptByCombo}
+                          onExtraPromptChange={(key, value) =>
+                            setExtraPromptByCombo(prev => ({ ...prev, [key]: value }))
+                          }
+                          disabled={isProcessing}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xl font-bold text-white">Results Gallery</h3>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-slate-400">{results.filter(r => r.status === 'success').length} Completed</span>
+                            {!isProcessing && (
+                              <button
+                                onClick={() => { setResults([]); setErrorMessage(null); }}
+                                className="text-sm px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 flex items-center gap-1.5"
+                              >
+                                <ArrowLeft className="w-3.5 h-3.5" />
+                                Edit combinations
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <ResultsGallery results={results} />
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

@@ -192,14 +192,16 @@ const ResultsGallery: React.FC<ResultsGalleryProps> = ({ results }) => {
                 {result.status === 'pending' && <span className="text-xs bg-slate-500/10 text-slate-400 px-2 py-0.5 rounded-full">Pending</span>}
              </div>
              
-             {/* Model Preview */}
-             <div className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative border border-slate-700">
-                <img src={result.modelPreview} alt={`Model reference for result ${idx + 1}`} className="w-full h-full object-cover opacity-70" />
-                <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-xs text-white text-center">
-                    Model
-                </div>
-             </div>
-             
+             {/* Model Preview (hidden for flat-lay, where the model is only an ignored reference) */}
+             {!result.hideModel && (
+               <div className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative border border-slate-700">
+                  <img src={result.modelPreview} alt={`Model reference for result ${idx + 1}`} className="w-full h-full object-cover opacity-70" />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 text-xs text-white text-center">
+                      Model
+                  </div>
+               </div>
+             )}
+
               {result.garmentPreview && (
                 <div className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative border border-slate-700">
                    <img src={result.garmentPreview} alt={`Garment input for result ${idx + 1}`} className="w-full h-full object-cover opacity-70" />

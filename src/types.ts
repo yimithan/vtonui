@@ -30,6 +30,17 @@ export interface GarmentGroup {
   files: FileWithPreview[];
 }
 
+// One planned generation in the AI Clothing batch. Flat-lay produces a single
+// combination per garment (model image is an ignored reference), so it does not
+// multiply by the model image count like the other modes.
+export interface PlannedCombo {
+  key: string;
+  promptMode: PromptMode;
+  modelIdx: number;
+  group: GarmentGroup;
+  flatLay: boolean;
+}
+
 export interface TryOnResult {
   modelId: string; // ID of the model image used
   modelPreview: string; // Preview of the model image
@@ -39,6 +50,7 @@ export interface TryOnResult {
   promptMode: PromptMode; // Prompt mode used for this result
   variantLabel?: string; // Optional result variant label (e.g. pose name)
   generatedPrompt?: string; // Descriptive prompt produced by the prompt-generation model
+  hideModel?: boolean; // Hide the model thumbnail (e.g. flat-lay, where the model is only an ignored reference)
   generatedImage?: string;
   status: ItemStatus;
   error?: string;
