@@ -228,7 +228,7 @@ export const generateTryOnImage = async (
 export const generateFacialEnhancement = async (
   apiKey: string,
   modelImage: File,
-  faceImage: File,
+  faceImages: File[],
   prompt: string,
   settings: { resolution: string; aspectRatio: string },
   imageModel: string = 'gemini-3-pro-image-preview',
@@ -236,7 +236,7 @@ export const generateFacialEnhancement = async (
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key is required");
 
-  plog(processId, 'info', `[gemini:facial] START — sub-process "generateFacialEnhancement"`);
+  plog(processId, 'info', `[gemini:facial] START — sub-process "generateFacialEnhancement" (${faceImages.length} reference(s))`);
 
   await logPromptProof(processId ?? 'noproc', 'gemini:facial', imageModel, prompt, {
     resolution: settings.resolution,
@@ -256,18 +256,20 @@ export const generateFacialEnhancement = async (
     }
   });
 
-  const faceBase64 = await fileToBase64(faceImage);
-  parts.push({
-    inlineData: {
-      mimeType: faceImage.type,
-      data: faceBase64
-    }
-  });
+  for (const faceImage of faceImages) {
+    const faceBase64 = await fileToBase64(faceImage);
+    parts.push({
+      inlineData: {
+        mimeType: faceImage.type,
+        data: faceBase64
+      }
+    });
+  }
 
-  // Proof: target model + reference face are both attached (face plays the
-  // "garment"/reference role here).
+  // Proof: target model + reference face(s) are all attached (the references
+  // play the "garment"/reference role here).
   if (processId) {
-    await logImageTransmissionProof(processId, 'gemini:facial (face=ref)', modelImage, [faceImage]);
+    await logImageTransmissionProof(processId, 'gemini:facial (face=ref)', modelImage, faceImages);
   }
 
   const response = await ai.models.generateContent({

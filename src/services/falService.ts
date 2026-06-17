@@ -280,7 +280,7 @@ export const generateTryOnImage = async (
 export const generateFacialEnhancement = async (
   apiKey: string,
   modelImage: File,
-  faceImage: File,
+  faceImages: File[],
   prompt: string,
   settings: { resolution: string; aspectRatio: string },
   imageModel: string = 'gemini-3-pro-image-preview',
@@ -290,7 +290,7 @@ export const generateFacialEnhancement = async (
   configureFal(apiKey);
 
   const endpoint = FAL_IMAGE_MODEL_MAP[imageModel] ?? FAL_IMAGE_FALLBACK;
-  plog(processId, 'info', `[fal:facial] START — sub-process "generateFacialEnhancement"`);
+  plog(processId, 'info', `[fal:facial] START — sub-process "generateFacialEnhancement" (${faceImages.length} reference(s))`);
   plog(
     processId,
     'proof',
@@ -303,10 +303,10 @@ export const generateFacialEnhancement = async (
   });
 
   const modelUri = await fileToDataUri(modelImage);
-  const faceUri = await fileToDataUri(faceImage);
+  const faceUris = await Promise.all(faceImages.map(fileToDataUri));
 
   if (processId) {
-    await logImageTransmissionProof(processId, 'fal:facial (face=ref)', modelImage, [faceImage]);
+    await logImageTransmissionProof(processId, 'fal:facial (face=ref)', modelImage, faceImages);
   }
 
   let result: any;
@@ -314,7 +314,7 @@ export const generateFacialEnhancement = async (
     result = await fal.subscribe(endpoint, {
       input: {
         prompt,
-        image_urls: [modelUri, faceUri],
+        image_urls: [modelUri, ...faceUris],
         num_images: 1,
         aspect_ratio: settings.aspectRatio,
         resolution: settings.resolution,
