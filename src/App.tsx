@@ -658,9 +658,13 @@ export default function App() {
         let resultImage: string;
         let variantLabel: string | undefined;
         if (facialV2UseComposite) {
+          // The face crop is square, so enhance it at 1:1 — otherwise a portrait
+          // aspect (e.g. 3:4) would be stretched into the square crop and distort
+          // the face proportions.
+          const cropSettings = { ...settings, aspectRatio: '1:1' as const };
           const composited = await enhanceFaceComposite(
             modelImage.preview,
-            (cropFile) => svc.generateFacialEnhancement(apiKey, cropFile, refFiles, effectivePrompt, settings, 'gemini-3-pro-image-preview', processId),
+            (cropFile) => svc.generateFacialEnhancement(apiKey, cropFile, refFiles, effectivePrompt, cropSettings, 'gemini-3-pro-image-preview', processId),
             modelImage.file.name,
           );
           if (composited) {

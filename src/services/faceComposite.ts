@@ -2,18 +2,19 @@ import { FaceLandmarker, FilesetResolver, type NormalizedLandmark } from '@media
 import { addLog } from './debugLogger';
 
 /**
- * High-fidelity face enhancement via crop → enhance → composite.
+ * High-fidelity face enhancement via crop → enhance → align → composite.
  *
  * Why: regenerating the whole image can drift the body/outfit/background. Here we
  * detect the face locally, enhance ONLY a padded crop around it with the image
- * model, then composite the enhanced face back onto the untouched original behind
- * a feathered mask — so everything outside the face stays pixel-identical.
+ * model, re-align the enhanced face to the original face (eye-based similarity
+ * transform), then composite it back onto the untouched original behind a
+ * feathered mask — so everything outside the face stays pixel-identical and the
+ * face proportions/position match exactly.
  *
  * MediaPipe FaceLandmarker runs 100% locally in the browser (WASM). It is NOT a
  * server/fal call and costs nothing. The WASM runtime + model are fetched as
- * static assets (CDN by default; repoint the two constants below at a self-hosted
- * /mediapipe path to run fully offline). The user's face images never leave the
- * browser for detection — only the existing image-generation call does.
+ * static assets (CDN by default). The user's face images never leave the browser
+ * for detection — only the existing image-generation call does.
  */
 
 // Swap these to self-hosted paths (e.g. '/mediapipe/wasm' and
@@ -21,6 +22,10 @@ import { addLog } from './debugLogger';
 const WASM_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm';
 const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+
+// Eye-corner landmark indices in the MediaPipe face mesh (used for alignment).
+const LEFT_EYE = [33, 133];
+const RIGHT_EYE = [263, 362];
 
 let landmarkerPromise: Promise<FaceLandmarker> | null = null;
 
@@ -34,7 +39,6 @@ function getLandmarker(): Promise<FaceLandmarker> {
         numFaces: 1,
       });
     })().catch((e) => {
-      // Reset so a later attempt can retry (e.g. transient network failure).
       landmarkerPromise = null;
       throw e;
     });
@@ -60,38 +64,43 @@ const fileToDataUrl = (file: File): Promise<string> =>
   });
 
 interface FaceBox { x: number; y: number; w: number; h: number }
+interface FaceDetection { box: FaceBox; landmarks: NormalizedLandmark[] }
+interface Pt { x: number; y: number }
 
-// The FaceLandmarker instance is not reentrant; serialize detect() calls so the
-// (up to 3) concurrent batch workers don't call it simultaneously.
+// FaceLandmarker is not reentrant; serialize detect() across concurrent workers.
 let detectGate: Promise<unknown> = Promise.resolve();
 
-/** Detect the first face and return its pixel-space bounding box, or null. */
-function detectFaceBox(img: HTMLImageElement): Promise<FaceBox | null> {
-  const run = detectGate.then(() => detectFaceBoxInner(img));
+function detectFace(img: HTMLImageElement | HTMLCanvasElement): Promise<FaceDetection | null> {
+  const run = detectGate.then(() => detectFaceInner(img));
   detectGate = run.catch(() => undefined);
   return run;
 }
 
-async function detectFaceBoxInner(img: HTMLImageElement): Promise<FaceBox | null> {
+async function detectFaceInner(img: HTMLImageElement | HTMLCanvasElement): Promise<FaceDetection | null> {
   const landmarker = await getLandmarker();
   const res = landmarker.detect(img);
-  const face: NormalizedLandmark[] | undefined = res.faceLandmarks?.[0];
-  if (!face || face.length === 0) return null;
+  const landmarks: NormalizedLandmark[] | undefined = res.faceLandmarks?.[0];
+  if (!landmarks || landmarks.length === 0) return null;
 
   let minX = 1, minY = 1, maxX = 0, maxY = 0;
-  for (const p of face) {
+  for (const p of landmarks) {
     if (p.x < minX) minX = p.x;
     if (p.y < minY) minY = p.y;
     if (p.x > maxX) maxX = p.x;
     if (p.y > maxY) maxY = p.y;
   }
-  const W = img.naturalWidth, H = img.naturalHeight;
+  const W = (img as HTMLImageElement).naturalWidth ?? (img as HTMLCanvasElement).width;
+  const H = (img as HTMLImageElement).naturalHeight ?? (img as HTMLCanvasElement).height;
   return {
-    x: minX * W,
-    y: minY * H,
-    w: (maxX - minX) * W,
-    h: (maxY - minY) * H,
+    box: { x: minX * W, y: minY * H, w: (maxX - minX) * W, h: (maxY - minY) * H },
+    landmarks,
   };
+}
+
+/** Average of two landmarks, scaled to pixel space and offset into a crop. */
+function lmMidPx(lms: NormalizedLandmark[], idx: number[], sx: number, sy: number, ox = 0, oy = 0): Pt {
+  const a = lms[idx[0]], b = lms[idx[1]];
+  return { x: ((a.x + b.x) / 2) * sx - ox, y: ((a.y + b.y) / 2) * sy - oy };
 }
 
 /** Square padded crop rect around the face, clamped to the image. */
@@ -102,7 +111,6 @@ function paddedSquareRect(box: FaceBox, imgW: number, imgH: number, pad = 0.7) {
   let x = Math.round(cx - half);
   let y = Math.round(cy - half);
   let size = Math.round(half * 2);
-  // Clamp into bounds (keep square; shrink if necessary).
   if (x < 0) x = 0;
   if (y < 0) y = 0;
   if (x + size > imgW) size = imgW - x;
@@ -112,28 +120,18 @@ function paddedSquareRect(box: FaceBox, imgW: number, imgH: number, pad = 0.7) {
 }
 
 /**
- * Feathered elliptical ALPHA mask hugging the face inside the crop.
- *
- * Critical: the canvas is left TRANSPARENT (alpha 0) outside the ellipse — only
- * the blurred white ellipse is opaque (alpha feathers 255→0 at its edge). The
- * composite uses `destination-in`, which keys off this alpha, so only the
- * feathered face oval is kept. (Filling the background black would make alpha
- * 255 everywhere and paste the whole crop rectangle — a visible hard square.)
+ * Feathered elliptical ALPHA mask hugging the face interior. The canvas is left
+ * TRANSPARENT (alpha 0) outside the ellipse; only the blurred white ellipse is
+ * opaque. `destination-in` keys off this alpha, keeping only the feathered oval.
+ * (rx is kept snug to the cheeks so the oval does not reach the ears/earrings.)
  */
-function buildFeatherMask(
-  cropSize: number,
-  faceCx: number,
-  faceCy: number,
-  faceW: number,
-  faceH: number,
-): HTMLCanvasElement {
+function buildFeatherMask(cropSize: number, faceCx: number, faceCy: number, faceW: number, faceH: number): HTMLCanvasElement {
   const mask = document.createElement('canvas');
   mask.width = cropSize;
   mask.height = cropSize;
   const ctx = mask.getContext('2d')!;
-  // Background stays transparent — do NOT fill it.
-  const rx = (faceW / 2) * 1.18;
-  const ry = (faceH / 2) * 1.32;
+  const rx = (faceW / 2) * 1.06;
+  const ry = (faceH / 2) * 1.28;
   const feather = Math.max(10, cropSize * 0.07);
   ctx.save();
   ctx.filter = `blur(${feather}px)`;
@@ -145,13 +143,28 @@ function buildFeatherMask(
   return mask;
 }
 
+/** 2-point similarity (scale+rotate+translate) mapping s1→d1 and s2→d2. */
+function similarityFromPairs(s1: Pt, s2: Pt, d1: Pt, d2: Pt) {
+  const sdx = s2.x - s1.x, sdy = s2.y - s1.y;
+  const ddx = d2.x - d1.x, ddy = d2.y - d1.y;
+  const sLen = Math.hypot(sdx, sdy);
+  if (sLen < 1e-3) return null;
+  const k = Math.hypot(ddx, ddy) / sLen;
+  const ang = Math.atan2(ddy, ddx) - Math.atan2(sdy, sdx);
+  const a = Math.cos(ang) * k, b = Math.sin(ang) * k, c = -Math.sin(ang) * k, d = Math.cos(ang) * k;
+  const e = d1.x - (a * s1.x + c * s1.y);
+  const f = d1.y - (b * s1.x + d * s1.y);
+  return { a, b, c, d, e, f, scale: k };
+}
+
 /**
  * Run the high-fidelity composite path.
  *
- * @param originalSrc  data/URL of the original target image (kept untouched outside the face)
- * @param enhanceCrop  callback that enhances a face-crop File and returns the enhanced data URL
- *                     (the caller wires this to the existing generateFacialEnhancement on the crop)
- * @returns composited data URL, or null if no face was detected (caller should fall back).
+ * @param originalSrc  data/URL of the original target image
+ * @param enhanceCrop  enhances a face-crop File → enhanced data URL (caller wires
+ *                     this to generateFacialEnhancement; it MUST request a 1:1
+ *                     aspect ratio so the square crop is not stretched)
+ * @returns composited data URL, or null if no face was detected (caller falls back).
  */
 export async function enhanceFaceComposite(
   originalSrc: string,
@@ -161,19 +174,19 @@ export async function enhanceFaceComposite(
   const original = await loadImage(originalSrc);
   const W = original.naturalWidth, H = original.naturalHeight;
 
-  let box: FaceBox | null;
+  let det: FaceDetection | null;
   try {
-    box = await detectFaceBox(original);
+    det = await detectFace(original);
   } catch (e: any) {
     addLog('warn', `[faceComposite:${logLabel}] face detection unavailable (${e?.message ?? e}); falling back to whole-image.`);
     return null;
   }
-  if (!box) {
+  if (!det) {
     addLog('warn', `[faceComposite:${logLabel}] no face detected; falling back to whole-image enhancement.`);
     return null;
   }
 
-  const rect = paddedSquareRect(box, W, H);
+  const rect = paddedSquareRect(det.box, W, H);
   addLog('info', `[faceComposite:${logLabel}] face crop ${rect.w}×${rect.h} at (${rect.x},${rect.y}) of ${W}×${H}.`);
 
   // 1) Extract the padded face crop as a File.
@@ -187,22 +200,48 @@ export async function enhanceFaceComposite(
   );
   const cropFile = new File([cropBlob], 'face-crop.png', { type: 'image/png' });
 
-  // 2) Enhance the crop with the image model (caller-provided).
+  // 2) Enhance the crop (caller requests 1:1 so proportions are preserved).
   const enhancedUrl = await enhanceCrop(cropFile);
   const enhanced = await loadImage(enhancedUrl);
 
-  // 3) Composite the enhanced face back behind a feathered mask.
+  // 3) Draw the enhanced crop, ALIGNED to the original face via eye landmarks so
+  //    its features land exactly where the original face was (no proportional
+  //    mismatch / ghosting). Falls back to a plain scale if alignment fails.
   const enhCanvas = document.createElement('canvas');
   enhCanvas.width = rect.w;
   enhCanvas.height = rect.h;
   const enhCtx = enhCanvas.getContext('2d')!;
-  // Scale the enhanced crop to the exact crop rect (edit models preserve framing).
-  enhCtx.drawImage(enhanced, 0, 0, enhanced.naturalWidth, enhanced.naturalHeight, 0, 0, rect.w, rect.h);
+
+  // Original face eye centers in crop-local pixels.
+  const origLeft = lmMidPx(det.landmarks, LEFT_EYE, W, H, rect.x, rect.y);
+  const origRight = lmMidPx(det.landmarks, RIGHT_EYE, W, H, rect.x, rect.y);
+
+  let aligned = false;
+  try {
+    const enhDet = await detectFace(enhanced);
+    if (enhDet) {
+      const enhLeft = lmMidPx(enhDet.landmarks, LEFT_EYE, rect.w, rect.h);
+      const enhRight = lmMidPx(enhDet.landmarks, RIGHT_EYE, rect.w, rect.h);
+      const t = similarityFromPairs(enhLeft, enhRight, origLeft, origRight);
+      // Only trust a sane transform (avoid wild warps from a bad detection).
+      if (t && t.scale > 0.5 && t.scale < 2.0) {
+        enhCtx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
+        enhCtx.drawImage(enhanced, 0, 0, enhanced.naturalWidth, enhanced.naturalHeight, 0, 0, rect.w, rect.h);
+        enhCtx.setTransform(1, 0, 0, 1, 0, 0);
+        aligned = true;
+      }
+    }
+  } catch {
+    /* alignment is best-effort */
+  }
+  if (!aligned) {
+    addLog('info', `[faceComposite:${logLabel}] eye-alignment unavailable; using direct paste.`);
+    enhCtx.drawImage(enhanced, 0, 0, enhanced.naturalWidth, enhanced.naturalHeight, 0, 0, rect.w, rect.h);
+  }
 
   const mask = buildFeatherMask(rect.w, rect.faceCx, rect.faceCy, rect.faceW, rect.faceH);
 
-  // Light tone-match toward the original, sampled ONLY over the kept face region
-  // (the mask), so divergent crop backgrounds don't skew the correction.
+  // Tone-match toward the original, sampled ONLY over the kept face region.
   try {
     matchMeanColor(enhCtx, cropCtx, mask, rect.w, rect.h);
   } catch {
@@ -220,15 +259,14 @@ export async function enhanceFaceComposite(
   outCtx.drawImage(original, 0, 0);
   outCtx.drawImage(enhCanvas, rect.x, rect.y);
 
-  addLog('info', `[faceComposite:${logLabel}] composited enhanced face onto untouched original (${W}×${H}).`);
+  addLog('info', `[faceComposite:${logLabel}] composited ${aligned ? 'eye-aligned' : 'direct'} face onto untouched original (${W}×${H}).`);
   return out.toDataURL('image/png');
 }
 
 /**
  * Shift the enhanced crop's mean RGB toward the original crop's mean, sampling
- * means ONLY over the kept face region (mask alpha > 128). This keeps the face
- * tone matched to the original without being skewed by the surrounding padding
- * (whose background the model may have re-rendered differently).
+ * means ONLY over the kept face region (mask alpha > 128) so the surrounding
+ * padding/background does not skew the correction.
  */
 function matchMeanColor(
   enhCtx: CanvasRenderingContext2D,
@@ -249,7 +287,6 @@ function matchMeanColor(
   };
   const [er, eg, eb] = meanOf(enh.data);
   const [or, og, ob] = meanOf(orig.data);
-  // Cap the correction so we never tint the face heavily.
   const clamp = (v: number) => Math.max(-28, Math.min(28, v));
   const dr = clamp(or - er), dg = clamp(og - eg), db = clamp(ob - eb);
   const d = enh.data;
