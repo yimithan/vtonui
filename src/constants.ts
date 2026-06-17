@@ -196,28 +196,38 @@ export const DEFAULT_FACIAL_ENHANCEMENT_PROMPT = `Enhance the facial details of 
 // Midjourney "plastic skin / dead-or-cross eyes / CGI sheen" look by transplanting
 // real skin/eye micro-detail from one or more realistic close-up references onto
 // the target's face, while strictly preserving the target's pose/scene/lighting.
-export const DEFAULT_FACIAL_V2_PROMPT = `ROLE: You are a photoreal face-restoration and identity-transfer retoucher. The images arrive in a fixed order.
+export const DEFAULT_FACIAL_V2_PROMPT = `Core Objective
+Replace the artificial, CGI-looking face in a target image with a photorealistic face using reference images, without altering the original scene's composition, lighting, or pose.
 
-IMAGE 1 (the FIRST image) = THE TARGET TO EDIT. Output this full scene. Its face currently looks artificial (Midjourney/CGI look): plastic, waxy, airbrushed, over-smoothed skin; glassy, dead, doll-like, or cross/converging eyes; a uniform unnatural sheen. EVERYTHING in IMAGE 1 except the artificial face-surface quality is correct and must be preserved exactly.
+Input Breakdown
 
-IMAGES 2..N (every REMAINING image) = REALISM + IDENTITY REFERENCES ONLY. They are photoreal close-ups of the SAME person, possibly from different angles. Synthesize across all of them. Use them ONLY as the source of truth for how this person's real skin and eyes look up close. DO NOT reproduce their crop, head angle, expression, lighting, or background — they are texture/identity references, never a layout to copy.
+Image 1 (Target): The base image to edit. The scene, pose, and lighting are perfect, but the face looks fake (plastic skin, dead/crossed eyes).
 
-TASK: Re-render the face in IMAGE 1 so it reads as a real photograph of the reference person, while keeping IMAGE 1's pose, framing, identity, and scene 100% intact.
+Images 2+ (References): High-quality photos of the target person. Use these strictly to extract realistic skin textures, eye details, and accurate facial features.
 
-TRANSPLANT INTO IMAGE 1's FACE (from the references):
-- Real skin micro-detail: visible pores, subsurface scattering, fine vellus (peach-fuzz) hair, natural micro-imperfections (subtle texture and redness, tiny moles/freckles consistent with the person) and uneven realistic specular highlights instead of a uniform plastic shine.
-- Real eyes: a sharp, detailed iris with fibers and a clear limbal ring, natural moisture and small realistic catchlights, soft natural lashes, and a NORMAL straight gaze. CORRECT any cross-eyed, convergent, or wandering gaze so both eyes track the same direction.
-- True likeness: bone structure, eye shape, nose, lips, and proportions taken from the references so the identity is unmistakably the same person.
+Actionable Tasks
 
-FIX THESE IMAGE 1 ARTIFACTS: remove the plastic/waxy/airbrushed/over-smoothed skin and replace it with real photographic skin texture; remove the CGI sheen / 3D-render look / uniform glossy highlight; fix glassy, dead, doll, or cross eyes; remove the over-sharpened "AI-perfect" look and reintroduce natural photographic micro-contrast and grain consistent with the rest of IMAGE 1.
+Enhance Realism: Apply natural skin textures like pores, peach fuzz, realistic specular highlights, and subtle imperfections.
 
-STRICTLY PRESERVE FROM IMAGE 1 (do NOT change): the person's identity (do not turn them into a different person); head pose, angle and tilt; facial expression and mouth; camera framing, crop, perspective, focal length and how large the face sits in frame; body, proportions, outfit, accessories and hands; hair shape, colour, length and style; the background; and the existing lighting direction, intensity, colour temperature and shadow pattern.
+Fix Eyes: Create sharp, detailed irises with a corrected, straight gaze and natural catchlights.
 
-LIGHTING RULE (critical): Adapt the realistic skin and eyes to IMAGE 1's existing lighting. Do NOT import the references' lighting, white balance or colour cast. Highlights and shadows must fall where IMAGE 1's light dictates, and the corrected face must colour-match IMAGE 1's own neck, ears and body skin.
+Match Lighting: Adapt the newly generated realistic features to perfectly match the existing lighting, shadows, and color temperature of Image 1.
 
-OUTPUT: a single photorealistic image identical to IMAGE 1 in every way except that the face now has authentic, lifelike skin and eyes.
+Ensure Likeness: Transplant the exact bone structure and proportions from the reference images to ensure the identity matches completely.
 
-NEGATIVE CONSTRAINTS (must NOT happen): no swap to a different person or beautifying into someone else; no change to pose, head angle, expression, framing, crop, zoom, outfit, hair or background; no copying the references' composition, crop or lighting; no plastic, waxy, airbrushed or porcelain skin; no doll/glassy/dead eyes, cross-eyed or divergent gaze, or mismatched pupils; no CGI/3D-render sheen or uniform glossy face; no skin-tone or colour-temperature mismatch between the face and IMAGE 1's neck and body.`;
+Strict Constraints
+
+PRESERVE COMPOSITION & PERSPECTIVE: Do not under any circumstances change the camera angle, the scene's perspective, or the exact framing (crop) of Image 1.
+
+Do Not Change Garments: The clothing in Image 1 must remain 100% untouched. Do not alter the fabric, fit, texture, colors, or structural details of any garments, as strict SKU consistency is required.
+
+Do Not Change: Image 1's head pose, expression, background, or lighting.
+
+Do Not Copy: The composition, crop, background, or lighting from the reference images.
+
+Do Not Render: Plastic, airbrushed, or CGI-looking skin.
+
+Do Not Mismatch: Ensure the newly generated face matches the skin tone of Image 1's neck and body perfectly.`;
 
 // Two-stage prompt-maker for v2: a vision→text model inspects the actual target
 // and reference images and writes a tailored enhancement prompt for THIS pair.

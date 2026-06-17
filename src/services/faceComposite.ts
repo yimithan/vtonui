@@ -111,7 +111,15 @@ function paddedSquareRect(box: FaceBox, imgW: number, imgH: number, pad = 0.7) {
   return { x, y, w: size, h: size, faceCx: cx - x, faceCy: cy - y, faceW: box.w, faceH: box.h };
 }
 
-/** Feathered elliptical alpha mask hugging the face inside the crop. */
+/**
+ * Feathered elliptical ALPHA mask hugging the face inside the crop.
+ *
+ * Critical: the canvas is left TRANSPARENT (alpha 0) outside the ellipse — only
+ * the blurred white ellipse is opaque (alpha feathers 255→0 at its edge). The
+ * composite uses `destination-in`, which keys off this alpha, so only the
+ * feathered face oval is kept. (Filling the background black would make alpha
+ * 255 everywhere and paste the whole crop rectangle — a visible hard square.)
+ */
 function buildFeatherMask(
   cropSize: number,
   faceCx: number,
@@ -123,12 +131,10 @@ function buildFeatherMask(
   mask.width = cropSize;
   mask.height = cropSize;
   const ctx = mask.getContext('2d')!;
-  ctx.fillStyle = 'black';
-  ctx.fillRect(0, 0, cropSize, cropSize);
-  // Ellipse a bit larger than the face box; feather via blur.
+  // Background stays transparent — do NOT fill it.
   const rx = (faceW / 2) * 1.18;
   const ry = (faceH / 2) * 1.32;
-  const feather = Math.max(8, cropSize * 0.06);
+  const feather = Math.max(10, cropSize * 0.07);
   ctx.save();
   ctx.filter = `blur(${feather}px)`;
   ctx.fillStyle = 'white';
@@ -193,14 +199,16 @@ export async function enhanceFaceComposite(
   // Scale the enhanced crop to the exact crop rect (edit models preserve framing).
   enhCtx.drawImage(enhanced, 0, 0, enhanced.naturalWidth, enhanced.naturalHeight, 0, 0, rect.w, rect.h);
 
-  // Optional light tone-match toward the original crop to reduce seam visibility.
+  const mask = buildFeatherMask(rect.w, rect.faceCx, rect.faceCy, rect.faceW, rect.faceH);
+
+  // Light tone-match toward the original, sampled ONLY over the kept face region
+  // (the mask), so divergent crop backgrounds don't skew the correction.
   try {
-    matchMeanColor(enhCtx, cropCtx, rect.w, rect.h);
+    matchMeanColor(enhCtx, cropCtx, mask, rect.w, rect.h);
   } catch {
     /* tone-match is best-effort */
   }
 
-  const mask = buildFeatherMask(rect.w, rect.faceCx, rect.faceCy, rect.faceW, rect.faceH);
   enhCtx.globalCompositeOperation = 'destination-in';
   enhCtx.drawImage(mask, 0, 0);
   enhCtx.globalCompositeOperation = 'source-over';
@@ -216,24 +224,33 @@ export async function enhanceFaceComposite(
   return out.toDataURL('image/png');
 }
 
-/** Shift the enhanced crop's mean RGB toward the original crop's mean (subtle). */
+/**
+ * Shift the enhanced crop's mean RGB toward the original crop's mean, sampling
+ * means ONLY over the kept face region (mask alpha > 128). This keeps the face
+ * tone matched to the original without being skewed by the surrounding padding
+ * (whose background the model may have re-rendered differently).
+ */
 function matchMeanColor(
   enhCtx: CanvasRenderingContext2D,
   origCtx: CanvasRenderingContext2D,
+  mask: HTMLCanvasElement,
   w: number,
   h: number,
 ) {
   const enh = enhCtx.getImageData(0, 0, w, h);
   const orig = origCtx.getImageData(0, 0, w, h);
+  const maskData = mask.getContext('2d')!.getImageData(0, 0, w, h).data;
   const meanOf = (d: Uint8ClampedArray) => {
-    let r = 0, g = 0, b = 0, n = d.length / 4;
-    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
-    return [r / n, g / n, b / n];
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (maskData[i + 3] > 128) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+    }
+    return n > 0 ? [r / n, g / n, b / n] : [0, 0, 0];
   };
   const [er, eg, eb] = meanOf(enh.data);
   const [or, og, ob] = meanOf(orig.data);
   // Cap the correction so we never tint the face heavily.
-  const clamp = (v: number) => Math.max(-18, Math.min(18, v));
+  const clamp = (v: number) => Math.max(-28, Math.min(28, v));
   const dr = clamp(or - er), dg = clamp(og - eg), db = clamp(ob - eb);
   const d = enh.data;
   for (let i = 0; i < d.length; i += 4) {
