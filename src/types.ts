@@ -13,8 +13,15 @@ export type ItemStatus = 'pending' | 'analyzing' | 'generating' | 'success' | 'e
 
 export type PromptMode = 'default' | 'flat-lay' | 'bag-on-model' | 'bag-no-model' | 'custom';
 
-export type PromptModel = 'gemini-3-pro-preview' | 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-lite-preview';
+export type PromptModel = 'gemini-3-pro-preview' | 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-lite-preview' | 'anthropic/claude-sonnet-4.6';
 export type ImageModel = 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview';
+
+// A single pose option in the Pose Generator. Poses are opt-in: only `included`
+// ones are generated (toggled via the + button next to each pose).
+export interface PoseVariation {
+  text: string;
+  included: boolean;
+}
 
 // Which pipeline / interface backs the generation calls.
 export type AIProvider = 'gemini' | 'fal';

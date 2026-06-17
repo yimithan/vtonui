@@ -9,7 +9,7 @@ import GarmentList from './components/GarmentList';
 import ResultsGallery from './components/ResultsGallery';
 import DebugConsole from './components/DebugConsole';
 import PromptModeSelector from './components/PromptModeSelector';
-import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptMode, AIProvider, PlannedCombo } from './types';
+import { FileWithPreview, GenerationSettings, AppStatus, GarmentGroup, TryOnResult, PromptMode, AIProvider, PlannedCombo, PoseVariation } from './types';
 import { getService } from './services/aiService';
 import { enhanceFaceComposite } from './services/faceComposite';
 import { addLog, newProcessId, logProcess } from './services/debugLogger';
@@ -23,8 +23,7 @@ import {
   DEFAULT_FACIAL_ENHANCEMENT_PROMPT,
   DEFAULT_FACIAL_V2_PROMPT,
   FACIAL_V2_PROMPT_MAKER,
-  POSE_VARIATIONS_SET_1,
-  POSE_VARIATIONS_SET_2
+  POSE_VARIATIONS
 } from './constants';
 import { Loader2, AlertTriangle, Wand2, StopCircle, Key, ArrowLeft, Sparkles, Shirt, UserRoundCog, ScanFace } from 'lucide-react';
 
@@ -110,8 +109,11 @@ export default function App() {
   const [poseModelImages, setPoseModelImages] = useState<FileWithPreview[]>([]);
   const [poseResults, setPoseResults] = useState<TryOnResult[]>([]);
   const [posePromptTemplate, setPosePromptTemplate] = useState(DEFAULT_POSE_PROMPT_TEMPLATE);
-  const [poseVariations, setPoseVariations] = useState<string[]>(POSE_VARIATIONS_SET_1);
-  const [poseVariationSet, setPoseVariationSet] = useState<1 | 2>(1);
+  // Pose options are opt-in: each starts excluded; the user includes them via the
+  // + toggle next to each pose. Only `included` poses are generated.
+  const [poseVariations, setPoseVariations] = useState<PoseVariation[]>(
+    POSE_VARIATIONS.map(text => ({ text, included: false }))
+  );
   const [poseStatus, setPoseStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [poseBatchProgress, setPoseBatchProgress] = useState({ current: 0, total: 0 });
   const [poseErrorMessage, setPoseErrorMessage] = useState<string | null>(null);
@@ -334,6 +336,13 @@ export default function App() {
       setPoseErrorMessage("Please upload at least one model image.");
       return;
     }
+    const activePoses = poseVariations
+      .map((p, idx) => ({ ...p, idx }))
+      .filter(p => p.included && p.text.trim());
+    if (activePoses.length === 0) {
+      setPoseErrorMessage("Select at least one pose — press the + button next to a pose to include it.");
+      return;
+    }
 
     setPoseErrorMessage(null);
     setShouldAbortPose(false);
@@ -344,8 +353,8 @@ export default function App() {
 
     const combinations: { modelIdx: number; poseIdx: number; pose: string }[] = [];
     for (let modelIdx = 0; modelIdx < poseModelImages.length; modelIdx++) {
-      for (let poseIdx = 0; poseIdx < poseVariations.length; poseIdx++) {
-        combinations.push({ modelIdx, poseIdx, pose: poseVariations[poseIdx] });
+      for (const ap of activePoses) {
+        combinations.push({ modelIdx, poseIdx: ap.idx, pose: ap.text });
       }
     }
 
@@ -376,7 +385,7 @@ export default function App() {
       logProcess(
         processId,
         'proof',
-        `POSE PROCESS START — model="${modelImage.file.name}" · pose ${poseIdx + 1}/${poseVariations.length} (set ${poseVariationSet})${templateEdited ? ' · template EDITED' : ' · default template'} · garments=0 (pose mode uses none)`,
+        `POSE PROCESS START — model="${modelImage.file.name}" · pose #${poseIdx + 1}${templateEdited ? ' · template EDITED' : ' · default template'} · garments=0 (pose mode uses none)`,
         `Pose: ${pose}\nImage model: ${settings.imageModel}\nResolution/Aspect: ${settings.resolution}/${settings.aspectRatio}`,
       );
 
@@ -989,11 +998,6 @@ export default function App() {
               onPromptTemplateChange={setPosePromptTemplate}
               poseVariations={poseVariations}
               onPoseVariationsChange={setPoseVariations}
-              poseVariationSet={poseVariationSet}
-              onPoseVariationSetChange={(set) => {
-                setPoseVariationSet(set);
-                setPoseVariations(set === 1 ? POSE_VARIATIONS_SET_1 : POSE_VARIATIONS_SET_2);
-              }}
             />
 
             <main className="flex-1 p-8 overflow-y-auto">
@@ -1001,7 +1005,7 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-3xl font-bold text-white mb-2">Pose Generator</h2>
-                    <p className="text-slate-400">Generate {poseVariations.length} pose variations for each uploaded model image.</p>
+                    <p className="text-slate-400">Generate {poseVariations.filter(p => p.included).length} selected pose variation(s) for each uploaded model image.</p>
                   </div>
                   <button
                     onClick={() => setActiveFunction(null)}
@@ -1033,7 +1037,7 @@ export default function App() {
 
                     <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 backdrop-blur-sm text-sm text-slate-300">
                       <p className="font-semibold text-slate-200">Pose Loop</p>
-                      <p className="text-slate-400 mt-2">Configured to iterate through {poseVariations.length} predefined poses for each model image.</p>
+                      <p className="text-slate-400 mt-2">Iterates through the {poseVariations.filter(p => p.included).length} selected pose(s) for each model image. Toggle poses on with the + button in the sidebar.</p>
                     </div>
 
                     <div className="pt-2 sticky bottom-4 z-10">

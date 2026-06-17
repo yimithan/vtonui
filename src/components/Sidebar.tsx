@@ -129,6 +129,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
               <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
               <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
+              <option value="anthropic/claude-sonnet-4.6">anthropic/claude-sonnet-4.6 (fal pipeline)</option>
             </select>
           </div>
 

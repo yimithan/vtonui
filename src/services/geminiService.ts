@@ -58,6 +58,11 @@ export const analyzeImages = async (
   processId?: string
 ): Promise<string> => {
   if (!apiKey) throw new Error("API Key is required");
+  // The direct Google API can only run Gemini models. Non-Gemini prompt models
+  // (e.g. Anthropic Claude) are only reachable through the fal/OpenRouter pipeline.
+  if (!promptModel.startsWith('gemini')) {
+    throw new Error(`Prompt model "${promptModel}" isn't a Google Gemini model — switch the Pipeline (top bar) to "fal API" to use it.`);
+  }
 
   plog(processId, 'info', `[gemini:analyze] START — sub-process "analyzeImages" (prompt-maker)`);
 

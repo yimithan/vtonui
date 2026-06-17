@@ -47,6 +47,8 @@ const FAL_TEXT_MODEL_MAP: Record<string, string> = {
   'gemini-3-pro-preview': 'google/gemini-2.5-pro',
   'gemini-3.1-pro-preview': 'google/gemini-2.5-pro',
   'gemini-3.1-flash-lite-preview': 'google/gemini-2.5-flash-lite',
+  // Anthropic Claude via OpenRouter (the app id is already a valid OpenRouter slug).
+  'anthropic/claude-sonnet-4.6': 'anthropic/claude-sonnet-4.6',
 };
 
 // Documented-valid default (used verbatim in the fal OpenRouter API docs).

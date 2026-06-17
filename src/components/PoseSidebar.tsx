@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Settings, AlertCircle, FileText, Cpu, ChevronDown, ChevronUp, Plus, Trash2, Edit2, Check, X, List } from 'lucide-react';
-import { GenerationSettings, ImageModel } from '../types';
-import { DEFAULT_POSE_PROMPT_TEMPLATE } from '../constants';
+import { GenerationSettings, ImageModel, PoseVariation } from '../types';
 
 interface PoseSidebarProps {
   settings: GenerationSettings;
@@ -9,10 +8,8 @@ interface PoseSidebarProps {
   isProcessing: boolean;
   promptTemplate: string;
   onPromptTemplateChange: (prompt: string) => void;
-  poseVariations: string[];
-  onPoseVariationsChange: (poses: string[]) => void;
-  poseVariationSet: 1 | 2;
-  onPoseVariationSetChange: (set: 1 | 2) => void;
+  poseVariations: PoseVariation[];
+  onPoseVariationsChange: (poses: PoseVariation[]) => void;
 }
 
 const PoseSidebar: React.FC<PoseSidebarProps> = ({
@@ -23,11 +20,9 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
   onPromptTemplateChange,
   poseVariations,
   onPoseVariationsChange,
-  poseVariationSet,
-  onPoseVariationSetChange,
 }) => {
   const [promptMode] = useState('pose-preservation');
-  const [poseListExpanded, setPoseListExpanded] = useState(false);
+  const [poseListExpanded, setPoseListExpanded] = useState(true);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
 
@@ -48,56 +43,51 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging.current) return;
       const delta = e.clientX - startX.current;
-      const newWidth = Math.max(280, Math.min(640, startWidth.current + delta));
-      setSidebarWidth(newWidth);
+      setSidebarWidth(Math.max(280, Math.min(640, startWidth.current + delta)));
     };
-
-    const handleMouseUp = () => {
-      isDragging.current = false;
-    };
-
+    const handleMouseUp = () => { isDragging.current = false; };
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, []);
 
+  const includedCount = poseVariations.filter(p => p.included).length;
+
+  const toggleIncluded = (idx: number) => {
+    onPoseVariationsChange(poseVariations.map((p, i) => (i === idx ? { ...p, included: !p.included } : p)));
+  };
+
   const handleEditPose = (idx: number) => {
     setEditingIdx(idx);
-    setEditingText(poseVariations[idx]);
+    setEditingText(poseVariations[idx].text);
   };
 
   const handleSavePose = (idx: number) => {
     if (!editingText.trim()) return;
-    const updated = [...poseVariations];
-    updated[idx] = editingText.trim();
-    onPoseVariationsChange(updated);
+    onPoseVariationsChange(poseVariations.map((p, i) => (i === idx ? { ...p, text: editingText.trim() } : p)));
     setEditingIdx(null);
   };
 
   const handleCancelEdit = () => {
-    // If cancelling on a brand-new empty pose, remove it
-    if (editingIdx !== null && poseVariations[editingIdx] === '') {
+    // If cancelling on a brand-new empty pose, remove it.
+    if (editingIdx !== null && poseVariations[editingIdx]?.text === '') {
       handleDeletePose(editingIdx);
     }
     setEditingIdx(null);
   };
 
   const handleDeletePose = (idx: number) => {
-    const updated = poseVariations.filter((_, i) => i !== idx);
-    onPoseVariationsChange(updated);
-    if (editingIdx === idx) {
-      setEditingIdx(null);
-    } else if (editingIdx !== null && editingIdx > idx) {
-      setEditingIdx(editingIdx - 1);
-    }
+    onPoseVariationsChange(poseVariations.filter((_, i) => i !== idx));
+    if (editingIdx === idx) setEditingIdx(null);
+    else if (editingIdx !== null && editingIdx > idx) setEditingIdx(editingIdx - 1);
   };
 
   const handleAddPose = () => {
-    const updated = [...poseVariations, ''];
+    // A pose the user adds manually is included by default (they intend to use it).
+    const updated = [...poseVariations, { text: '', included: true }];
     onPoseVariationsChange(updated);
     setEditingIdx(updated.length - 1);
     setEditingText('');
@@ -152,57 +142,6 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
 
         <div className="h-px bg-slate-700 my-4" />
 
-        {/* Pose Variation Set Selector */}
-        <div className="space-y-2">
-          <span className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <List className="w-4 h-4" />
-            Pose Variation Set
-          </span>
-          <div className="flex gap-2">
-            {/* Option 1: face without eyes */}
-            <button
-              type="button"
-              onClick={() => !isProcessing && onPoseVariationSetChange(1)}
-              disabled={isProcessing}
-              className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg border transition-colors disabled:opacity-40 ${
-                poseVariationSet === 1
-                  ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
-                  : 'border-slate-600 bg-slate-900/50 text-slate-400 hover:border-slate-500 hover:text-slate-300'
-              }`}
-              title="Set 1 – Original poses"
-            >
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="16" cy="16" r="13" stroke="currentColor" strokeWidth="2" fill="none"/>
-                <path d="M11 21 Q16 25 21 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-              </svg>
-              <span className="text-xs font-medium">Set 1</span>
-            </button>
-
-            {/* Option 2: face with eyes */}
-            <button
-              type="button"
-              onClick={() => !isProcessing && onPoseVariationSetChange(2)}
-              disabled={isProcessing}
-              className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg border transition-colors disabled:opacity-40 ${
-                poseVariationSet === 2
-                  ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
-                  : 'border-slate-600 bg-slate-900/50 text-slate-400 hover:border-slate-500 hover:text-slate-300'
-              }`}
-              title="Set 2 – Expressive poses"
-            >
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="16" cy="16" r="13" stroke="currentColor" strokeWidth="2" fill="none"/>
-                <circle cx="12" cy="14" r="2" fill="currentColor"/>
-                <circle cx="20" cy="14" r="2" fill="currentColor"/>
-                <path d="M11 21 Q16 25 21 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-              </svg>
-              <span className="text-xs font-medium">Set 2</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="h-px bg-slate-700 my-4" />
-
         {/* Pose Variations Section */}
         <div className="space-y-2">
           <button
@@ -212,48 +151,63 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
           >
             <span className="flex items-center gap-2">
               <List className="w-4 h-4" />
-              Pose Variations ({poseVariations.length})
+              Pose Variations ({includedCount}/{poseVariations.length} included)
             </span>
             {poseListExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
 
+          <p className="text-xs text-slate-500">
+            Poses are optional. Press the <Plus className="w-3 h-3 inline -mt-0.5" /> next to a pose to include it in the batch.
+          </p>
+
           {poseListExpanded && (
             <div className="space-y-1">
-              <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+              <div className="max-h-80 overflow-y-auto space-y-1 pr-1">
                 {poseVariations.map((pose, idx) => (
-                  <div key={idx} className="flex items-start gap-1.5 text-xs bg-slate-900/50 rounded p-2">
-                    <span className="text-slate-500 shrink-0 w-6 text-right mt-0.5">{idx + 1}.</span>
+                  <div
+                    key={idx}
+                    className={`flex items-start gap-1.5 text-xs rounded p-2 border transition-colors ${
+                      pose.included ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-slate-900/50 border-transparent'
+                    }`}
+                  >
+                    {/* Include toggle */}
+                    <button
+                      type="button"
+                      onClick={() => toggleIncluded(idx)}
+                      disabled={isProcessing}
+                      title={pose.included ? 'Included — click to exclude' : 'Click to include in the batch'}
+                      className={`shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors disabled:opacity-40 ${
+                        pose.included
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-500'
+                          : 'border border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300'
+                      }`}
+                    >
+                      {pose.included ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                    </button>
+
+                    <span className="text-slate-500 shrink-0 w-5 text-right mt-0.5">{idx + 1}.</span>
+
                     {editingIdx === idx ? (
                       <div className="flex-1 space-y-1">
                         <textarea
                           value={editingText}
                           onChange={(e) => setEditingText(e.target.value)}
-                          rows={2}
+                          rows={3}
                           className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 resize-y outline-none focus:ring-1 focus:ring-indigo-500"
                           autoFocus
                         />
                         <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleSavePose(idx)}
-                            className="text-green-400 hover:text-green-300 transition-colors"
-                            title="Save"
-                          >
+                          <button type="button" onClick={() => handleSavePose(idx)} className="text-green-400 hover:text-green-300 transition-colors" title="Save">
                             <Check className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={handleCancelEdit}
-                            className="text-slate-400 hover:text-slate-300 transition-colors"
-                            title="Cancel"
-                          >
+                          <button type="button" onClick={handleCancelEdit} className="text-slate-400 hover:text-slate-300 transition-colors" title="Cancel">
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
                     ) : (
                       <>
-                        <span className="flex-1 text-slate-300 line-clamp-2 leading-relaxed">{pose}</span>
+                        <span className="flex-1 text-slate-300 leading-relaxed">{pose.text}</span>
                         <button
                           type="button"
                           onClick={() => handleEditPose(idx)}
@@ -284,7 +238,7 @@ const PoseSidebar: React.FC<PoseSidebarProps> = ({
                 className="w-full flex items-center justify-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 py-1.5 border border-dashed border-slate-600 hover:border-indigo-500 rounded transition-colors disabled:opacity-40"
               >
                 <Plus className="w-3 h-3" />
-                Add Pose
+                Add Custom Pose
               </button>
             </div>
           )}
