@@ -71,15 +71,51 @@ type ContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } };
 
-// Full data URI (with the data:...;base64, prefix) — required for fal image_urls
-// and for OpenAI-compatible image_url parts.
-const fileToDataUri = (file: File): Promise<string> =>
+// Cap the longest edge of inline input images. fal receives images as base64
+// data URIs in the request body; full-resolution (e.g. 4K) inputs produce a
+// multi-megabyte JSON body that the browser/edge can drop with "Failed to
+// fetch". Downscaling oversized inputs keeps the payload small. The OUTPUT
+// resolution is controlled separately by the `resolution` input, so this does
+// not change the generated image size.
+const MAX_INPUT_EDGE = 2048;
+
+const loadHtmlImage = (src: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('image decode failed'));
+    img.src = src;
+  });
+
+const readAsDataUri = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (error) => reject(error);
+    reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+
+// Full data URI (with the data:...;base64, prefix), downscaled if oversized.
+const fileToDataUri = async (file: File): Promise<string> => {
+  const raw = await readAsDataUri(file);
+  try {
+    const img = await loadHtmlImage(raw);
+    const longest = Math.max(img.naturalWidth, img.naturalHeight);
+    if (longest <= MAX_INPUT_EDGE) return raw;
+    const scale = MAX_INPUT_EDGE / longest;
+    const w = Math.round(img.naturalWidth * scale);
+    const h = Math.round(img.naturalHeight * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return raw;
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  } catch {
+    return raw; // any failure → send the original
+  }
+};
 
 const configureFal = (apiKey: string) => {
   if (!apiKey) throw new Error('API Key is required');
@@ -94,6 +130,9 @@ const normalizeFalError = (e: any): Error => {
   const msg = typeof raw === 'string' ? raw : JSON.stringify(raw);
   if (status === 401 || status === 403) {
     return new Error(`API Key authorization failed (${status}): ${msg}`);
+  }
+  if (/failed to fetch/i.test(msg)) {
+    return new Error(`fal request failed: ${msg} — likely the request payload is too large or a network/CORS issue. Try smaller input images or a lower resolution.`);
   }
   return new Error(`fal request failed${status ? ` (${status})` : ''}: ${msg}`);
 };
